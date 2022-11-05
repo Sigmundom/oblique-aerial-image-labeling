@@ -154,8 +154,8 @@ def create_mask(image, wc_to_ic, buildings, city_json):
         surfaces = geometry['semantics']['surfaces']
         walls = []
         roofs = []
-        for boandary, surface in zip(boundaries, surfaces):
-            vertices = [wc_to_ic(*all_vertices[v_i]) for v_i in boandary[0]]
+        for boundary, surface in zip(boundaries, surfaces):
+            vertices = [wc_to_ic(*all_vertices[v_i]) for v_i in boundary[0]]
             if surface['type'] == 'RoofSurface':
                 roofs.append(vertices)
             elif surface['type'] == 'WallSurface':
