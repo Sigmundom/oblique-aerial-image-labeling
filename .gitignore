@@ -1,0 +1,11 @@
+/__pycache__
+
+# Input
+/images
+
+# Output
+/dataset
+
+# Random files
+/trash
+/citygml-tools-1.4.5
