@@ -45,17 +45,64 @@ def read_sos(filename, indent_char='.'):
     '''
     from collections import OrderedDict
     import tqdm
-    import utils
+    
+
+    ##### UTILS ####
+    def utfopen(filename):
+        '''Read utf encoded files'''
+        import chardet
+        import codecs
+        import io
+        import os
+
+        # Handle file encoding
+        bytes = min(32, os.path.getsize(filename))
+        raw = open(filename, 'rb').read(bytes)
+
+        if raw.startswith(codecs.BOM_UTF8):
+            encoding = 'utf-8-sig'
+        else:
+            result = chardet.detect(raw)
+            encoding = result['encoding']
+
+        encoding = 'latin-1'
+
+        return io.open(filename, 'r', encoding=encoding)
+
+
+    def get_n_lines(filename):
+        '''Get number of lines by calling bash command wc'''
+        import os
+        import subprocess
+
+        cmd = 'wc -l {0}'.format(filename)
+        output = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE).stdout
+
+        return int((output).readlines()[0].split()[0])
+
+
+    def indent_ind(line, indent_char):
+        '''Return the index locaitons of indent character in a string'''
+        ind = list()
+        if line:
+            for n, c in enumerate(line):
+                if c == indent_char:
+                    ind.append(n)
+                else:
+                    break
+        return ind
+
+    ######
 
     # Parse function for parent field keys, and for data lines
     parse_parent = lambda s: s.replace(' ', '_').replace(':','').strip()
     parse_data   = lambda s: s
 
     # Get number of lines in file for generating progress bar
-    n_lines = utils.get_n_lines(filename)
+    n_lines = get_n_lines(filename)
 
     # Open file with appropriate encoding
-    f = utils.utfopen(filename)
+    f = utfopen(filename)
 
     # Init counters and key/data containers
     n_id = 0
@@ -75,8 +122,8 @@ def read_sos(filename, indent_char='.'):
             continue
 
         # Get number of indent characters at start of line
-        n0 = len(utils.indent_ind(l0, indent_char))
-        n1 = len(utils.indent_ind(l1, indent_char))
+        n0 = len(indent_ind(l0, indent_char))
+        n1 = len(indent_ind(l1, indent_char))
 
         # Check if line contains indent character
         if n0 > 0:

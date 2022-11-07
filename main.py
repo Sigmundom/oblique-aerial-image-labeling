@@ -1,11 +1,12 @@
 from matplotlib.collections import PatchCollection
 from matplotlib.patches import Polygon
+from create_annotation import create_annotation
 import sosi
 import json
 import numpy as np
 from math import cos, sin
 import matplotlib.pyplot as plt
-from os import path, makedirs
+from os import path, makedirs, listdir
 from PIL import Image
 import config
 from split_image import split_image
@@ -67,29 +68,32 @@ def create_output_folder():
     folders = [
         config.output_folder, 
         f'{config.output_folder}/images',
+        f'{config.output_folder}/images/train',
+        f'{config.output_folder}/annotations',
         f'{config.output_folder}/image_data',
-        f'{config.output_folder}/masks',
         ]
     for folder in folders:
         if not path.exists(folder):
             makedirs(folder)
 
-# def get_buildings_in_bbox(buildings, all_vertices, x_min, x_max, y_min, y_max):
+# def get_buildings_in_bbox(buildings, all_vertices, bbox):
 
 
 
 
-def get_buildings_in_image(all_buildings, all_vertices, image_data):
+def get_buildings_in_image(image_data, city_json, wc_to_ic):
     corner_points = ["UL", "UR", "LR", "LL"]
     x_coords = [float(image_data[f'{point}x']) for point in corner_points]
     y_coords = [float(image_data[f'{point}y']) for point in corner_points]
-    x_min, x_max = min(x_coords), max(x_coords)
-    y_min, y_max = min(y_coords), max(y_coords)
+    x, x_max = min(x_coords), max(x_coords)
+    y, y_max = min(y_coords), max(y_coords)
 
-    vertices_in_image = (all_vertices[:, 0] > x_min) & (all_vertices[:,0] < x_max) & (all_vertices[:,1] > y_min) & (all_vertices[:, 1] < y_max)
-    buildings_in_image = {}
+    all_buildings = city_json['CityObjects']
+    all_vertices = np.array(city_json['vertices'])
+    vertices_in_image = (all_vertices[:, 0] > x) & (all_vertices[:,0] < x_max) & (all_vertices[:,1] > y) & (all_vertices[:, 1] < y_max)
+    buildings_in_image = []
 
-    for id, building in all_buildings.items():
+    for building in all_buildings.values():
         geometry = building["geometry"]
         if len(geometry) > 1:
             print("Length is:", len(geometry))
@@ -99,11 +103,34 @@ def get_buildings_in_image(all_buildings, all_vertices, image_data):
         vertices_i = [v for boundary in boundaries for v in boundary[0]]
         
         if np.any(np.take(vertices_in_image, vertices_i, 0)):
-            buildings_in_image[id]=building
+            surfaces = []
+            for boundary in boundaries:
+                surfaces.append([wc_to_ic(*all_vertices[v_i]) for v_i in boundary[0]])
+            vertices = np.array([v for surface in surfaces for v in surface])
+            x = vertices[:,0].min()
+            x_max = vertices[:,0].max()
+            y = vertices[:,1].min()
+            y_max = vertices[:,1].max()
+            building['surfaces'] = surfaces
+            building['bbox'] = (x, y, x_max-x, y_max-y)
+            buildings_in_image.append(building)
     
     return buildings_in_image
 
-    # return get_buildings_in_bbox(all_buildings, all_vertices, x_min, x_max, y_min, y_max)
+
+def get_buildings_in_tile(buildings, anchor):
+    ay, ax = anchor
+    a_height, a_width = config.tile_size
+    def is_building_in_tile(building):
+        bx,by, b_width, b_height = building['bbox']
+        return not (
+            bx + b_width < ax or
+            by + b_height < ay or 
+            bx > ax + a_width or 
+            by > ay + a_height
+            )
+
+    return list(filter(is_building_in_tile, buildings))
 
 
     
@@ -143,30 +170,30 @@ def get_wc_to_ic_transformer(image_data):
     
     return wc_to_ic
 
-def create_mask(image, wc_to_ic, buildings, city_json):
-    mask = np.zeros_like(image)
-    all_vertices = np.array(city_json['vertices'])
-    fig, ax = plt.subplots()
-    ax.imshow(image, extent=[-mask.shape[1]/2., mask.shape[1]/2., -mask.shape[0]/2., mask.shape[0]/2. ])
-    for building in buildings.values():
-        geometry = building['geometry'][0]
-        boundaries = geometry['boundaries']
-        surfaces = geometry['semantics']['surfaces']
-        walls = []
-        roofs = []
-        for boundary, surface in zip(boundaries, surfaces):
-            vertices = [wc_to_ic(*all_vertices[v_i]) for v_i in boundary[0]]
-            if surface['type'] == 'RoofSurface':
-                roofs.append(vertices)
-            elif surface['type'] == 'WallSurface':
-                walls.append(vertices)
-            else:
-                print('New surface type!', surface['type'])
+# def create_mask(image, wc_to_ic, buildings, city_json):
+#     mask = np.zeros_like(image)
+#     all_vertices = np.array(city_json['vertices'])
+#     fig, ax = plt.subplots()
+#     ax.imshow(image, extent=[-mask.shape[1]/2., mask.shape[1]/2., -mask.shape[0]/2., mask.shape[0]/2. ])
+#     for building in buildings.values():
+#         geometry = building['geometry'][0]
+#         boundaries = geometry['boundaries']
+#         surfaces = geometry['semantics']['surfaces']
+#         walls = []
+#         roofs = []
+#         for boundary, surface in zip(boundaries, surfaces):
+#             vertices = [wc_to_ic(*all_vertices[v_i]) for v_i in boundary[0]]
+#             if surface['type'] == 'RoofSurface':
+#                 roofs.append(vertices)
+#             elif surface['type'] == 'WallSurface':
+#                 walls.append(vertices)
+#             else:
+#                 print('New surface type!', surface['type'])
 
-        for wall in walls:
-            ax.add_patch(Polygon(wall, closed=True, facecolor='red'))
-        for roof in roofs:
-            ax.add_patch(Polygon(roof, closed=True, facecolor='blue'))
+#         for wall in walls:
+#             ax.add_patch(Polygon(wall, closed=True, facecolor='red'))
+#         for roof in roofs:
+#             ax.add_patch(Polygon(roof, closed=True, facecolor='blue'))
 
             
 
@@ -180,7 +207,7 @@ def create_mask(image, wc_to_ic, buildings, city_json):
     # w, h = fig.canvas.get_width_height()
     # im = data.reshape((int(h), int(w), -1))
     # plt.imsave('image.png', im)
-    plt.show()
+    # plt.show()
     
 
 
@@ -192,24 +219,62 @@ def process_image(image_file, city_json):
     wc_to_ic = get_wc_to_ic_transformer(image_data)
 
     
-    all_buildings = city_json['CityObjects']
-    all_vertices = np.array(city_json['vertices'])
-    buildings_in_image = get_buildings_in_image(all_buildings, all_vertices, image_data)
-    create_mask(image, wc_to_ic, buildings_in_image, city_json)
+    buildings_in_image = get_buildings_in_image(image_data, city_json, wc_to_ic)
     
     anchors = split_image(image)
-
+    # create_mask(image, wc_to_ic, buildings_in_image, city_json)
     tile_names = []
+    annotations = []
+    images = []
+    image_folder = f'{config.output_folder}/images/train'
+
+    annotation_id = 1
+    image_id = 1
+
     for anchor in anchors:
         tile_name = f'{image_name}_{anchor[0]}_{anchor[1]}'
         tile_names.append(tile_name)
         tile = image[anchor[0]:anchor[0]+config.tile_size[0], anchor[1]:anchor[1]+config.tile_size[1]]
-        # buildings_in_tile = get_buildings_in_bbox(buildings_in_image, all_vertices,)
-        # mask = create_mask(tile, image_data, buildings, city_json)
+        buildings_in_tile = get_buildings_in_tile(buildings_in_image, anchor)
+        if len(buildings_in_tile) == 0:
+            continue
+        for building in buildings_in_tile:
+            surfaces = [[[x-anchor[0], y-anchor[1]] for x,y  in surface] for surface in building['surfaces']]
+            annotation = create_annotation(surfaces, image_id, annotation_id)
+            if annotation is not None:
+                annotations.append(annotations)
+            annotation_id += 1
         
-        
-        plt.imsave(f'{config.output_folder}/images/{tile_name}.jpg', tile)
+        tile_file = tile_name + '.jpg'
+        plt.imsave(f'{image_folder}/{tile_file}', tile)
+        images.append({
+            "id": image_id,
+            "height": config.tile_size[0],
+            "width": config.tile_size[1],
+            "file_name": tile_file,
+            "license": None,
+            "coco_url": None
+        })
+        image_id += 1
 
+
+    coco = {}
+    coco["info"] = {}
+    coco['images'] = images
+    coco['annotation'] = annotations
+    coco['licences'] = []
+    coco['categories'] = [
+        {
+            "id": 1,
+            "name": "Builing",
+            "supercategory": "Building"
+        }
+    ]
+        
+
+
+    with open(f'{config.output_folder}/annotations/instances_train.json', 'w') as f:
+        json.dump(coco, f)
     image_data['tiles'] = tile_names
 
     # Save metadata

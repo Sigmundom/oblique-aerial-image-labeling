@@ -1,25 +1,52 @@
 import itertools
-import json
-from os import path
 import numpy as np
-from main import get_buildings_in_image, get_image_data, get_wc_to_ic_transformer
 import shapely.geometry as sg
-import shapely.affinity as sa
-import descartes
-import matplotlib.pyplot as plt
 from functools import reduce
+import matplotlib.pyplot as plt
+import descartes
+
+def visualize(polygon):
+    ax = plt.gca()
+    x, y, max_x, max_y = polygon.bounds
+    ax.set_xlim(x, max_x); ax.set_ylim(y, max_y)
+    ax.set_aspect('equal')
+    
+    # ax.add_patch(descartes.PolygonPatch(wall, ec='k', alpha=0.5))
+
+    ax.add_patch(descartes.PolygonPatch(polygon, ec='green', fc='red', alpha=0.5))
+    
+    plt.show()
 
 def union(a,b):
     return a.union(b)
 
+# h, w = config.tile_size
+# tile = sg.Polygon([(0,0), (0,w), (h,w), (h,0)])
 
 def create_annotation(surfaces, image_id, annotation_id):
     polygons = [sg.Polygon(r) for r in surfaces]
+    
+    for p in polygons:
+        if not p.is_valid:
+            print('Not valid!')
+            # visualize(p)
+            # visualize(sg.MultiPolygon(polygons))
+            return None
+        if not p.is_closed:
+            print('Not closed')
+            # visualize(p)
+            # visualize(sg.MultiPolygon(polygons))
+            return None
+
 
     multi_poly = reduce(union, polygons).simplify(1)
+    # multi_poly = multi_poly.intersection(tile)
 
     if type(multi_poly) == sg.Polygon:
         multi_poly = sg.MultiPolygon([multi_poly])
+    if type(multi_poly) == sg.LineString:
+        print('LineString!')
+        # visualize(multi_poly)
 
     x, y, max_x, max_y = multi_poly.bounds
     width = max_x - x
@@ -29,8 +56,16 @@ def create_annotation(surfaces, image_id, annotation_id):
 
     segmentation = []
     for poly in multi_poly:
-        segmentation.append([x for x in itertools.chain.from_iterable(itertools.zip_longest(*poly.exterior.coords.xy)) if x ])
-   
+        if type(poly) == sg.LineString:
+            print('Actually a linestring!')
+            print(type(multi_poly))
+            # visualize(poly)
+        else :
+            segmentation.append([x for x in itertools.chain.from_iterable(itertools.zip_longest(*poly.exterior.coords.xy)) if x ])
+    
+    
+
+
     return {
         'segmentation': segmentation,
         'iscrowd': 0,
@@ -39,17 +74,7 @@ def create_annotation(surfaces, image_id, annotation_id):
         'id': annotation_id,
         'bbox': bbox,
         'area': area
-    }    
-    
-    # ax = plt.gca()
-    # ax.set_xlim(x, max_x); ax.set_ylim(y, max_y)
-    # ax.set_aspect('equal')
-    
-    # # ax.add_patch(descartes.PolygonPatch(wall, ec='k', alpha=0.5))
-
-    # ax.add_patch(descartes.PolygonPatch(outline, ec='green', fc='red', alpha=0.5))
-    
-    # plt.show()
+    }   
 
 
 # def draw_mask(walls, roofs):
