@@ -1,18 +1,15 @@
-from matplotlib.collections import PatchCollection
-from matplotlib.patches import Polygon
+import datetime
+from matplotlib.patches import Polygon, Rectangle
 from create_annotation import create_annotation
 import sosi
 import json
 import numpy as np
 from math import cos, sin
 import matplotlib.pyplot as plt
-from os import path, makedirs, listdir
-from PIL import Image
+from os import path, makedirs
 import config
-from split_image import split_image
-
-
-OUTPUT_FOLDER = 'output'
+from split_image import split_image, get_tile
+from PIL import Image
 
 
 def get_image_data(image_name):
@@ -76,8 +73,6 @@ def create_output_folder():
         if not path.exists(folder):
             makedirs(folder)
 
-# def get_buildings_in_bbox(buildings, all_vertices, bbox):
-
 
 
 
@@ -122,7 +117,7 @@ def get_buildings_in_tile(buildings, anchor):
     ay, ax = anchor
     a_height, a_width = config.tile_size
     def is_building_in_tile(building):
-        bx,by, b_width, b_height = building['bbox']
+        bx, by, b_width, b_height = building['bbox']
         return not (
             bx + b_width < ax or
             by + b_height < ay or 
@@ -212,48 +207,84 @@ def get_wc_to_ic_transformer(image_data):
 
 
 def process_image(image_file, city_json):
-    image = plt.imread(image_file)
+    # image = plt.imread(image_file)
+    image = Image.open(image_file)
     image_name = path.basename(image_file).split('.')[0]
 
     image_data = get_image_data(image_name)
+    date, time = image_data['ShotDate']
+    year, month, day = [int(x) for x in date.split('/')]
+    h = int(time[:2])
+    m = int(time[2:4])
+    s = int(time[4:6])
+    date_captured = datetime.datetime(year, month, day, h, m, s)
+
     wc_to_ic = get_wc_to_ic_transformer(image_data)
 
     
     buildings_in_image = get_buildings_in_image(image_data, city_json, wc_to_ic)
     
     anchors = split_image(image)
-    # create_mask(image, wc_to_ic, buildings_in_image, city_json)
     tile_names = []
     annotations = []
     images = []
-    image_folder = f'{config.output_folder}/images/train'
 
+    image_folder = f'{config.output_folder}/images/train'
+    
     annotation_id = 1
     image_id = 1
 
+    first = True
     for anchor in anchors:
         tile_name = f'{image_name}_{anchor[0]}_{anchor[1]}'
         tile_names.append(tile_name)
-        tile = image[anchor[0]:anchor[0]+config.tile_size[0], anchor[1]:anchor[1]+config.tile_size[1]]
         buildings_in_tile = get_buildings_in_tile(buildings_in_image, anchor)
         if len(buildings_in_tile) == 0:
             continue
+        if first:
+            first = False
+            continue
+        tile = get_tile(image, anchor)
+        # print(anchor)
+        # # tile.show()
+        # ax = plt.gca()
+        # ax.imshow(image, extent=[-image.width/2., image.width/2., -image.height/2., image.height/2. ])
+        # ax.add_patch(Rectangle((anchor[1], anchor[0]), width=config.tile_size[1], height=config.tile_size[0], linewidth=1, edgecolor='r', facecolor='none'))
+        
+        # for building in buildings_in_tile:
+        #     x, y, w, h = building['bbox']
+        #     ax.add_patch(Rectangle((x,y), width=w, height=h, linewidth=1, edgecolor='g', facecolor='none'))
+        #     for poly in building['surfaces']:
+        #         ax.add_patch(Polygon(poly, closed=True, facecolor='red'))
+        # plt.show()
+        all_surfaces = []
+        # save = False
         for building in buildings_in_tile:
-            surfaces = [[[x-anchor[0], y-anchor[1]] for x,y  in surface] for surface in building['surfaces']]
+            surfaces = [[[x-anchor[1], y-anchor[0]] for x,y  in surface] for surface in building['surfaces']]
+            all_surfaces.append(surfaces)
             annotation = create_annotation(surfaces, image_id, annotation_id)
             if annotation is not None:
-                annotations.append(annotations)
-            annotation_id += 1
+                annotations.append(annotation)
+                annotation_id += 1
+            # else:
+            #     save = True
+        
+        # if save:
+        #     tile.save('tile.jpg')
+        #     np.save('surfaces', all_surfaces)
+        #     with open('buildings.json', 'w') as f:
+        #         json.dump(buildings_in_tile, f)
+        #     exit()
         
         tile_file = tile_name + '.jpg'
-        plt.imsave(f'{image_folder}/{tile_file}', tile)
+        tile.save(f'{image_folder}/{tile_file}')
         images.append({
             "id": image_id,
             "height": config.tile_size[0],
             "width": config.tile_size[1],
             "file_name": tile_file,
-            "license": None,
-            "coco_url": None
+            "license": 1,
+            "date_captured": str(date_captured)
         })
         image_id += 1
 
@@ -261,22 +292,28 @@ def process_image(image_file, city_json):
     coco = {}
     coco["info"] = {}
     coco['images'] = images
-    coco['annotation'] = annotations
-    coco['licences'] = []
-    coco['categories'] = [
+    coco['annotations'] = annotations
+    coco['licences'] = [
         {
             "id": 1,
-            "name": "Builing",
-            "supercategory": "Building"
+            "name": "Attribution-NonCommercial-ShareAlike License",
+            "url": "http://creativecommons.org/licenses/by-nc-sa/2.0/",
         }
     ]
-        
+    coco['categories'] = [
+        {
+            "id": 0,
+            "name": "Builing",
+        }
+    ]
+    
 
 
     with open(f'{config.output_folder}/annotations/instances_train.json', 'w') as f:
         json.dump(coco, f)
+    
     image_data['tiles'] = tile_names
-
+    
     # Save metadata
     with open(f'{config.output_folder}/image_data/{image_name}.json', 'w') as f:
         json.dump(image_data, f)
@@ -284,9 +321,9 @@ def process_image(image_file, city_json):
 
 
 def main():
-    # image_file = 'images/Bakoverrettede bilder/30196_127_02033_210427_Cam4B.jpg'
+    image_file = 'images/Bakoverrettede bilder/30196_127_02033_210427_Cam4B.jpg'
     # image_file = 'images/Framoverrettede bilder/30196_127_02023_210427_Cam7F.jpg'
-    image_file = 'images/Framoverrettede bilder/30196_127_02026_210427_Cam7F.jpg'
+    # image_file = 'images/Framoverrettede bilder/30196_127_02026_210427_Cam7F.jpg'
     # image_file = 'images/Høyrerettede bilder/30196_124_01897_210427_Cam5R.jpg'
     # image_file = 'images/Høyrerettede bilder/30196_124_01898_210427_Cam5R.jpg'
     # image_file = 'images/Venstrerettede bilder/30196_128_02062_210427_Cam6L.jpg'

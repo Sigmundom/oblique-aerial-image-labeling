@@ -1,52 +1,61 @@
 import itertools
+import PIL
+from matplotlib.patches import Rectangle
 import numpy as np
 import shapely.geometry as sg
-from functools import reduce
+from shapely.geos import TopologicalError
+from shapely.validation import make_valid
 import matplotlib.pyplot as plt
 import descartes
+import config
 
-def visualize(polygon):
-    ax = plt.gca()
-    x, y, max_x, max_y = polygon.bounds
-    ax.set_xlim(x, max_x); ax.set_ylim(y, max_y)
-    ax.set_aspect('equal')
-    
-    # ax.add_patch(descartes.PolygonPatch(wall, ec='k', alpha=0.5))
-
-    ax.add_patch(descartes.PolygonPatch(polygon, ec='green', fc='red', alpha=0.5))
-    
-    plt.show()
-
-def union(a,b):
-    return a.union(b)
-
-# h, w = config.tile_size
-# tile = sg.Polygon([(0,0), (0,w), (h,w), (h,0)])
+h, w = config.tile_size
+tile = sg.Polygon([(0,0), (0,w), (h,w), (h,0)])
 
 def create_annotation(surfaces, image_id, annotation_id):
-    polygons = [sg.Polygon(r) for r in surfaces]
+    polygons = []
+    for surface in surfaces:
+        surface = [(x, config.tile_size[0]-y) for x,y in surface]
+        polygon = sg.Polygon(surface)
+        polygons.append(polygon)
     
-    for p in polygons:
-        if not p.is_valid:
-            print('Not valid!')
-            # visualize(p)
-            # visualize(sg.MultiPolygon(polygons))
-            return None
-        if not p.is_closed:
-            print('Not closed')
-            # visualize(p)
-            # visualize(sg.MultiPolygon(polygons))
+    for i in range(len(polygons)):
+        if not polygons[i].is_valid:
+            polygons[i] = make_valid(polygons[i])
+            if not polygons[i].is_valid:
+                print('Still not valid')
+                np.save(f'not_valid_{image_id}_{annotation_id}', surfaces)
+                return None
+        if isinstance(polygons[i], sg.GeometryCollection):
+            for p in polygons[i].geoms:
+                if isinstance(p, sg.Polygon):
+                    polygons[i] = p
+                    break
+        if not polygons[i].is_closed:
+            polygons[i] = polygons[i].buffer(1).buffer(-1)
+            if not polygons[i].is_closed:
+                print('Still not closed')
+                np.save(f'not_closed_{image_id}_{annotation_id}', surfaces)
             return None
 
+    multi_poly = polygons[0]
+    for i in range(1, len(polygons)):
+        try:
+            tmp = multi_poly.union(polygons[i])
+            if isinstance(tmp, (sg.Polygon, sg.MultiPolygon)):
+                multi_poly = tmp
+        except TopologicalError:
+            print('Failed doing the union operation. Ignoring the issue.')
+            np.save(f'wierd_{image_id}_{annotation_id}', surfaces)
 
-    multi_poly = reduce(union, polygons).simplify(1)
-    # multi_poly = multi_poly.intersection(tile)
+    multi_poly = multi_poly.simplify(1.0, preserve_topology=False)
+    if multi_poly.area < config.threshold_building_size: return None 
+    
+    multi_poly = multi_poly.intersection(tile)
+    if multi_poly.area < config.threshold_building_part_size: return None
 
     if type(multi_poly) == sg.Polygon:
         multi_poly = sg.MultiPolygon([multi_poly])
-    if type(multi_poly) == sg.LineString:
-        print('LineString!')
-        # visualize(multi_poly)
 
     x, y, max_x, max_y = multi_poly.bounds
     width = max_x - x
@@ -55,120 +64,48 @@ def create_annotation(surfaces, image_id, annotation_id):
     area = multi_poly.area
 
     segmentation = []
-    for poly in multi_poly:
-        if type(poly) == sg.LineString:
-            print('Actually a linestring!')
-            print(type(multi_poly))
-            # visualize(poly)
-        else :
-            segmentation.append([x for x in itertools.chain.from_iterable(itertools.zip_longest(*poly.exterior.coords.xy)) if x ])
+    for poly in multi_poly.geoms:
+        segmentation.append([x for x in itertools.chain.from_iterable(itertools.zip_longest(*poly.exterior.coords.xy))])
     
     
-
-
     return {
         'segmentation': segmentation,
         'iscrowd': 0,
         'image_id': image_id,
-        'category_id': 1,
+        'category_id': 0,
         'id': annotation_id,
         'bbox': bbox,
         'area': area
-    }   
+    }
 
+if __name__=='__main__':    
+    # all_s = np.load('surfaces.npy', allow_pickle=True)
+    # im = PIL.Image.open('tile.jpg')
+    all_s = [np.load('not_closed_62_592.npy', allow_pickle=True)]
+    im = PIL.Image.open('dataset/images/train/30196_127_02033_210427_Cam4B_567_-1745.jpg')
+    np_im = np.asarray(im)
+    ax = plt.gca()
+    ax.imshow(np_im)
+    for s in all_s:
+        annotation = create_annotation(s, 0, 0)
+        if annotation is None: continue
+        # print(annotation)
+        segments = annotation['segmentation']
+        polygons = []
+        for s in segments:
+            xy = []
+            for i in range(0, len(s), 2):
+                xy.append((s[i], s[i+1]))
+            polygons.append(sg.Polygon(xy))
+        
+            
+        for poly in polygons:
+            ax.add_patch(descartes.PolygonPatch(poly, ec='k', alpha=0.5))
+        xx, yy, w, h = annotation['bbox']
+        ax.add_patch(Rectangle((xx,yy), w, h, linewidth=1, edgecolor='r', facecolor='none'))
+        
+        
+        # print(annotation['area'])
+            # ax.add_patch(descartes.PolygonPatch(poly, ec='k', alpha=0.5))
+    plt.show()
 
-# def draw_mask(walls, roofs):
-#     x_min = walls[:,:,0].min()
-#     x_max = walls[:,:,0].max()
-#     y_min = walls[:,:,1].min()
-#     y_max = walls[:,:,1].max()
-
-#     roof_polygons = [sg.Polygon(r) for r in roofs]
-#     wall_polygons = [sg.Polygon(w) for w in walls]
-
-#     roof = reduce(union, roof_polygons)
-#     dilated = roof.buffer(0.5)
-#     roof = dilated.buffer(-0.5).simplify(1)
-
-#     wall = reduce(union, wall_polygons)
-#     wall = wall.difference(roof)
-#     eroded = wall.buffer(-0.5)
-#     wall = eroded.buffer(0.5).simplify(1)
-
-#     # print(roof.coords)
-#     print(type(roof))
-#     print(type(wall))
-#     exit()
-#     x,y = roof.exterior.coords.xy
-#     print(len(x), len(y))
-#     # exit()
-#     print([w.exterior.coords.xy for w in wall])
-#     # print('######')
-#     # print(wall.coords)
-#     # exit()
-#     ax = plt.gca()
-#     ax.set_xlim(x_min-3, x_max+3); ax.set_ylim(y_min-3, y_max+3)
-#     ax.set_aspect('equal')
-    
-#     # ax.add_patch(descartes.PolygonPatch(wall, ec='k', alpha=0.5))
-
-#     ax.add_patch(descartes.PolygonPatch(roof, ec='green', fc='red', alpha=0.5))
-    
-#     plt.show()
-
-if __name__=='__main__':
-    # image_file = 'images/Framoverrettede bilder/30196_127_02026_210427_Cam7F.jpg'
-    # image_name = path.basename(image_file).split('.')[0]
-    # image_data = get_image_data(image_name)
-    # wc_to_ic = get_wc_to_ic_transformer(image_data)
-
-    # with open('3DBYGG_BASISDATA_4202_GRIMSTAD_5972_FKB-BYGNING_SOSI_CityGML_reprojected.json') as f:
-    #     city_json = json.load(f)
-
-    # all_buildings = city_json['CityObjects']
-    # all_vertices = np.array(city_json['vertices'])
-    # buildings = get_buildings_in_image(all_buildings, all_vertices, image_data)
-    # it = iter(buildings.values())
-    # next(it)
-    # building = next(it)
-    
-
-    # geometry = building['geometry'][0]
-
-    # boundaries = geometry['boundaries']
-
-    # surfaces = []
-
-    # for boundary in boundaries:
-    #     surfaces.append([wc_to_ic(*all_vertices[v_i]) for v_i in boundary[0]])
-
-    # surfaces = np.array(surfaces)
-    # np.save('surfaces', surfaces)
-    
-    surfaces = np.load('surfaces.npy', allow_pickle=True)
-    annotation = create_annotation(surfaces, 0, 0)
-    print(annotation)
-
-
-    # surfaces = geometry['semantics']['surfaces']
-    # walls = []
-    # roofs = []
-
-    # for boundary, surface in zip(boundaries, surfaces):
-    #     vertices = [wc_to_ic(*all_vertices[v_i]) for v_i in boundary[0]]
-        # if surface['type'] == 'RoofSurface':
-        #     roofs.append(vertices)
-        # elif surface['type'] == 'WallSurface':
-        #     walls.append(vertices)
-        # else:
-        #     print('New surface type!', surface['type'])
-
-    # walls = np.array(walls)
-    # roofs = np.array(roofs)
-    # np.save('walls', walls)
-    # np.save('roofs', roofs)
-
-    # walls = np.load('walls.npy')
-    # roofs = np.load('roofs.npy', allow_pickle=True)
-
-    # draw_mask(walls, roofs)
