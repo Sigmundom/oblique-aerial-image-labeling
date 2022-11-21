@@ -19,7 +19,7 @@ def get_image_data(image_name):
     
     if path.exists(data_file):
         # Load data
-        with open(data_file) as f:
+        with open(data_file, encoding='utf8') as f:
             return json.load(f)
 
 
@@ -38,7 +38,7 @@ def get_v_in_image(image_data, image_file):
     if path.exists(v_file):
         return np.load(v_file)
 
-    with open('3DBYGG_BASISDATA_4202_GRIMSTAD_5972_FKB-BYGNING_SOSI_CityGML_reprojected.json') as f:
+    with open('3DBYGG_BASISDATA_4202_GRIMSTAD_5972_FKB-BYGNING_SOSI_CityGML_reprojected.json', encoding='utf8') as f:
         city_json = json.load(f)
 
     ul = [float(image_data["ULx"]), float(image_data["ULy"])]
@@ -136,6 +136,7 @@ def get_wc_to_ic_transformer(image_data):
     X_C = float(image_data['CameraX'])
     Y_C = float(image_data['CameraY'])
     Z_C = float(image_data['Alt'])
+    P_C = np.array([X_C, Y_C, Z_C])
     f = float(image_data['FocalLen'])
     FPx = float(image_data['FPx'])
     FPy = float(image_data['FPy'])
@@ -153,11 +154,8 @@ def get_wc_to_ic_transformer(image_data):
         [sin(phi), -sin(omega)*cos(phi), cos(omega)*cos(phi)]
     ])
 
-    def wc_to_ic(X,Y,Z):
-        dX = X-X_C
-        dY = Y-Y_C
-        dZ = Z-Z_C
-        diff = np.array([dX, dY, dZ])
+    def wc_to_ic(P):
+        diff = P-P_C
         d = m[2]@diff.T
         x = (x_0 - f * (m[0]@diff.T / d))*im_width/FPx
         y = (y_0 - f * (m[1]@diff.T / d))*im_height/FPy
@@ -165,44 +163,7 @@ def get_wc_to_ic_transformer(image_data):
     
     return wc_to_ic
 
-# def create_mask(image, wc_to_ic, buildings, city_json):
-#     mask = np.zeros_like(image)
-#     all_vertices = np.array(city_json['vertices'])
-#     fig, ax = plt.subplots()
-#     ax.imshow(image, extent=[-mask.shape[1]/2., mask.shape[1]/2., -mask.shape[0]/2., mask.shape[0]/2. ])
-#     for building in buildings.values():
-#         geometry = building['geometry'][0]
-#         boundaries = geometry['boundaries']
-#         surfaces = geometry['semantics']['surfaces']
-#         walls = []
-#         roofs = []
-#         for boundary, surface in zip(boundaries, surfaces):
-#             vertices = [wc_to_ic(*all_vertices[v_i]) for v_i in boundary[0]]
-#             if surface['type'] == 'RoofSurface':
-#                 roofs.append(vertices)
-#             elif surface['type'] == 'WallSurface':
-#                 walls.append(vertices)
-#             else:
-#                 print('New surface type!', surface['type'])
 
-#         for wall in walls:
-#             ax.add_patch(Polygon(wall, closed=True, facecolor='red'))
-#         for roof in roofs:
-#             ax.add_patch(Polygon(roof, closed=True, facecolor='blue'))
-
-            
-
-    # colors = 100 * np.random.rand(len(patches))
-    # p.set_array(colors)
-    # fig, ax = plt.subplots(7700, 10300)
-    # fig.colorbar(p, ax=ax)
-    # p = PatchCollection(patches)
-    # fig.canvas.draw()
-    # data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
-    # w, h = fig.canvas.get_width_height()
-    # im = data.reshape((int(h), int(w), -1))
-    # plt.imsave('image.png', im)
-    # plt.show()
     
 
 
@@ -245,20 +206,8 @@ def process_image(image_file, city_json):
             first = False
             continue
         tile = get_tile(image, anchor)
-        # print(anchor)
-        # # tile.show()
-        # ax = plt.gca()
-        # ax.imshow(image, extent=[-image.width/2., image.width/2., -image.height/2., image.height/2. ])
-        # ax.add_patch(Rectangle((anchor[1], anchor[0]), width=config.tile_size[1], height=config.tile_size[0], linewidth=1, edgecolor='r', facecolor='none'))
-        
-        # for building in buildings_in_tile:
-        #     x, y, w, h = building['bbox']
-        #     ax.add_patch(Rectangle((x,y), width=w, height=h, linewidth=1, edgecolor='g', facecolor='none'))
-        #     for poly in building['surfaces']:
-        #         ax.add_patch(Polygon(poly, closed=True, facecolor='red'))
-        # plt.show()
+
         all_surfaces = []
-        # save = False
         for building in buildings_in_tile:
             surfaces = [[[x-anchor[1], y-anchor[0]] for x,y  in surface] for surface in building['surfaces']]
             all_surfaces.append(surfaces)
@@ -266,15 +215,6 @@ def process_image(image_file, city_json):
             if annotation is not None:
                 annotations.append(annotation)
                 annotation_id += 1
-            # else:
-            #     save = True
-        
-        # if save:
-        #     tile.save('tile.jpg')
-        #     np.save('surfaces', all_surfaces)
-        #     with open('buildings.json', 'w') as f:
-        #         json.dump(buildings_in_tile, f)
-        #     exit()
         
         tile_file = tile_name + '.jpg'
         tile.save(f'{image_folder}/{tile_file}')
@@ -309,13 +249,13 @@ def process_image(image_file, city_json):
     
 
 
-    with open(f'{config.output_folder}/annotations/instances_train.json', 'w') as f:
+    with open(f'{config.output_folder}/annotations/instances_train.json', 'w', encoding='utf8') as f:
         json.dump(coco, f)
     
     image_data['tiles'] = tile_names
     
     # Save metadata
-    with open(f'{config.output_folder}/image_data/{image_name}.json', 'w') as f:
+    with open(f'{config.output_folder}/image_data/{image_name}.json', 'w', encoding='utf8') as f:
         json.dump(image_data, f)
     
 
@@ -329,17 +269,18 @@ def main():
     # image_file = 'images/Venstrerettede bilder/30196_128_02062_210427_Cam6L.jpg'
     # image_file = 'images/Venstrerettede bilder/30196_130_02151_210427_Cam6L.jpg'
     # image_file= 'images/Venstrerettede bilder/30196_130_02153_210427_Cam6L.jpg'
-    with open('3DBYGG_BASISDATA_4202_GRIMSTAD_5972_FKB-BYGNING_SOSI_CityGML_reprojected.json') as f:
+    with open('3DBYGG_BASISDATA_4202_GRIMSTAD_5972_FKB-BYGNING_SOSI_CityGML_reprojected.json', encoding='utf8') as f:
         city_json = json.load(f)
     create_output_folder()
     process_image(image_file, city_json)
+    
     exit()
-
-    image_data = get_image_data(image_file)
+    image_name = path.basename(image_file).split('.')[0]
+    image_data = get_image_data(image_name)
 
     # building_vertices = np.load('vertices.npy')
     building_vertices = get_v_in_image(image_data, image_file)
-    
+
     image = plt.imread(image_file)
 
     im_height = int(image_data['ImageRows'])
@@ -350,6 +291,7 @@ def main():
     X_C = float(image_data['CameraX'])
     Y_C = float(image_data['CameraY'])
     Z_C = float(image_data['Alt'])
+    P_C = np.array([X_C, Y_C, Z_C])
     f = float(image_data['FocalLen'])
     FPx = float(image_data['FPx'])
     FPy = float(image_data['FPy'])
@@ -361,24 +303,28 @@ def main():
     phi = float(image_data['Phi'])
     kappa = float(image_data['Kappa'])
 
+    # m=np.array([
+    #     [cos(phi)*cos(kappa), -cos(phi)*sin(kappa), sin(phi)], 
+    #     [cos(omega)*sin(kappa)+sin(omega)*sin(phi)*cos(kappa), cos(omega)*cos(kappa)-sin(omega)*sin(phi)*sin(kappa), -sin(omega)*cos(phi)],
+    #     [sin(omega)*sin(kappa)-cos(omega)*sin(phi)*cos(kappa), sin(omega)*cos(kappa)+cos(omega)*sin(phi)*sin(kappa), cos(omega)*cos(phi)]
+    # ])
     m=np.array([
         [cos(phi)*cos(kappa), cos(omega)*sin(kappa)+sin(omega)*sin(phi)*cos(kappa), sin(omega)*sin(kappa)-cos(omega)*sin(phi)*cos(kappa)], 
         [-cos(phi)*sin(kappa), cos(omega)*cos(kappa)-sin(omega)*sin(phi)*sin(kappa), sin(omega)*cos(kappa)+cos(omega)*sin(phi)*sin(kappa)],
         [sin(phi), -sin(omega)*cos(phi), cos(omega)*cos(phi)]
     ])
 
-    def wc_to_ic(X,Y,Z):
-        dX = X-X_C
-        dY = Y-Y_C
-        dZ = Z-Z_C
-        diff = np.array([dX, dY, dZ])
+    def wc_to_ic(P):
+        diff = P-P_C
         d = m[2]@diff.T
         x = (x_0 - f * (m[0]@diff.T / d))*im_width/FPx
         y = (y_0 - f * (m[1]@diff.T / d))*im_height/FPy
         return x, y
 
 
-    points = np.array([wc_to_ic(*v) for v in building_vertices])
+
+    points = np.array([wc_to_ic(v) for v in building_vertices])
+    print(np.histogram(points))
 
     points = points[(-im_width/2 < points[:,0]) & (points[:,0] < im_width/2) & (-im_height/2 < points[:,1]) & (points[:,1] < im_height/2)]
 
@@ -392,6 +338,45 @@ def main():
     plt.show()
 
 
+
+# def create_mask(image, wc_to_ic, buildings, city_json):
+#     mask = np.zeros_like(image)
+#     all_vertices = np.array(city_json['vertices'])
+#     fig, ax = plt.subplots()
+#     ax.imshow(image, extent=[-mask.shape[1]/2., mask.shape[1]/2., -mask.shape[0]/2., mask.shape[0]/2. ])
+#     for building in buildings.values():
+#         geometry = building['geometry'][0]
+#         boundaries = geometry['boundaries']
+#         surfaces = geometry['semantics']['surfaces']
+#         walls = []
+#         roofs = []
+#         for boundary, surface in zip(boundaries, surfaces):
+#             vertices = [wc_to_ic(*all_vertices[v_i]) for v_i in boundary[0]]
+#             if surface['type'] == 'RoofSurface':
+#                 roofs.append(vertices)
+#             elif surface['type'] == 'WallSurface':
+#                 walls.append(vertices)
+#             else:
+#                 print('New surface type!', surface['type'])
+
+#         for wall in walls:
+#             ax.add_patch(Polygon(wall, closed=True, facecolor='red'))
+#         for roof in roofs:
+#             ax.add_patch(Polygon(roof, closed=True, facecolor='blue'))
+
+            
+
+    # colors = 100 * np.random.rand(len(patches))
+    # p.set_array(colors)
+    # fig, ax = plt.subplots(7700, 10300)
+    # fig.colorbar(p, ax=ax)
+    # p = PatchCollection(patches)
+    # fig.canvas.draw()
+    # data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+    # w, h = fig.canvas.get_width_height()
+    # im = data.reshape((int(h), int(w), -1))
+    # plt.imsave('image.png', im)
+    # plt.show()
 
 
 if __name__ == '__main__':

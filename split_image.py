@@ -37,7 +37,6 @@ def get_tile(im: PIL.Image, anchor):
 if __name__ == '__main__':
     image_file = 'images/Bakoverrettede bilder/30196_127_02033_210427_Cam4B.jpg'
     image = PIL.Image.open(image_file)
-    tile_size = (768, 768)
 
     tiles = split_image(image)
     
