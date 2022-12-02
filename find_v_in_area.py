@@ -22,5 +22,6 @@ with open('3DBYGG_BASISDATA_4202_GRIMSTAD_5972_FKB-BYGNING_SOSI_CityGML_reprojec
 v_all = city_json['vertices']
 
 v_in_image = np.array([xy for xy in v_all if xy[0] > x_min and xy[0] < x_max and xy[1] > y_min and xy[1] < y_max])
-    
+
+print(v_in_image[:,2].mean()) 
 np.save('vertices', v_in_image)

@@ -13,11 +13,7 @@ h, w = config.tile_size
 tile = sg.Polygon([(0,0), (0,w), (h,w), (h,0)])
 
 def create_annotation(surfaces, image_id, annotation_id):
-    polygons = []
-    for surface in surfaces:
-        surface = [(x, config.tile_size[0]-y) for x,y in surface]
-        polygon = sg.Polygon(surface)
-        polygons.append(polygon)
+    polygons = [sg.Polygon(surface) for surface in surfaces]
     
     for i in range(len(polygons)):
         if not polygons[i].is_valid:
@@ -54,7 +50,7 @@ def create_annotation(surfaces, image_id, annotation_id):
     multi_poly = multi_poly.intersection(tile)
     if multi_poly.area < config.threshold_building_part_size: return None
 
-    if type(multi_poly) == sg.Polygon:
+    if isinstance(multi_poly, sg.Polygon):
         multi_poly = sg.MultiPolygon([multi_poly])
 
     x, y, max_x, max_y = multi_poly.bounds
@@ -89,7 +85,6 @@ if __name__=='__main__':
     for s in all_s:
         annotation = create_annotation(s, 0, 0)
         if annotation is None: continue
-        # print(annotation)
         segments = annotation['segmentation']
         polygons = []
         for s in segments:
@@ -104,8 +99,5 @@ if __name__=='__main__':
         xx, yy, w, h = annotation['bbox']
         ax.add_patch(Rectangle((xx,yy), w, h, linewidth=1, edgecolor='r', facecolor='none'))
         
-        
-        # print(annotation['area'])
-            # ax.add_patch(descartes.PolygonPatch(poly, ec='k', alpha=0.5))
     plt.show()
 
