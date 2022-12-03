@@ -7,7 +7,8 @@ def visualize(dataset):
     coco_dataset = fo.Dataset.from_dir(
         dataset_type=fo.types.COCODetectionDataset,
         data_path=f'{dataset}/images',
-        labels_path=f"{dataset}/annotations/instances_train.json",
+        labels_path=f"{dataset}/annotations/segmentation.json",
+        # labels_path=f"{dataset}/annotations/instances_train.json",
         include_id=True,
     )
 

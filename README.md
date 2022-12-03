@@ -1,5 +1,8 @@
 # Automatic tiling and annotation for aerial images
 
+## Installation
+To install rasterio which is needed for semantic annotation, follow the offical [installation guide](https://rasterio.readthedocs.io/en/latest/installation.html)
+
 ## Coordinate systems
 In this project there is three different coordinate systems World coordinates(WC), image coordinates(IC) and tile coordinates(TC).
 

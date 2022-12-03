@@ -22,13 +22,15 @@ class TiledImage:
             image_name, 
             image_data, 
             tile_size=(1024,1024), 
-            tile_overlap=0
+            tile_overlap=0,
+            output_folder='outputs'
             ):
         self.image = image
-        self.tile_size = tile_size
-        self.tile_overlap = tile_overlap
         self.image_name = image_name
         self.image_data = image_data
+        self.tile_size = tile_size
+        self.tile_overlap = tile_overlap
+        self.output_folder = output_folder
         self.wc_to_ic = get_wc_to_ic_transformer(image_data)
         self.anchors = self.get_tile_anchors()
 
@@ -41,27 +43,21 @@ class TiledImage:
     def ic_to_tc(self, image_xy: np.ndarray, tile_index:int) -> np.ndarray:
         assert image_xy.ndim == 2
         ax, ay = self.anchors[tile_index]
-        # print(ax, ay)
-        # print(image_xy)
         tile_xy = np.empty_like(image_xy)
         tile_xy[:,0] = image_xy[:,0] - ax
         tile_xy[:,1] = ay - image_xy[:,1]
-        # print(tile_xy)
         return tile_xy
 
-    # def wc_to_tc(self, world_coordinates: np.ndarray, tile_index: int) -> np.ndarray:
-    #     ic = self.wc_to_ic(world_coordinates)
-    #     return self.ic_to_tc(ic, tile_index)
 
-    def export_image_tiles(self, output_folder) -> None:
-        ensure_folder_exists(f'{output_folder}/images')
-        ensure_folder_exists(f'{output_folder}/image_data')
+    def export_image_tiles(self) -> None:
+        ensure_folder_exists(f'{self.output_folder}/images')
+        ensure_folder_exists(f'{self.output_folder}/image_data')
         for i, tile in enumerate(self):
             tile_name = f'{self.image_name}_{i}'
-            tile.save(f'{output_folder}/images/{tile_name}.jpg')
+            tile.save(f'{self.output_folder}/images/{tile_name}.jpg')
         
         self.image_data['tiles'] = dict(size=self.tile_size, anchors=self.anchors)
-        with open(f'{output_folder}/image_data/{self.image_name}.json', 'w', encoding='utf8') as f:
+        with open(f'{self.output_folder}/image_data/{self.image_name}.json', 'w', encoding='utf8') as f:
             json.dump(self.image_data, f)
 
         ax = plt.gca()
@@ -74,7 +70,7 @@ class TiledImage:
             ax.add_patch(Rectangle((x,y), width=self.tile_size[1], height=self.tile_size[0], linewidth=1, edgecolor='r', facecolor='none'))
             ax.text(x,y, str(i))
 
-        plt.savefig(f'{output_folder}/image_data/{self.image_name}.png')
+        plt.savefig(f'{self.output_folder}/image_data/{self.image_name}.png')
 
     def get_date_captured(self) -> datetime:
         date, time = self.image_data['ShotDate']
@@ -122,7 +118,7 @@ if __name__ == '__main__':
     image_name = path.basename(image_path).split('.')[0]
     image_data = get_image_data(seamline_path, image_name)
     tiled_image = TiledImage(image, image_name, image_data)
-    tiled_image.export_image_tiles('test_output')
+    tiled_image.export_image_tiles()
 
 
 

@@ -3,7 +3,11 @@ import json
 from typing import List
 from os import path
 from PIL import Image
+# from matplotlib import pyplot as plt
+from rasterio.features import rasterize
+from pycocotools.mask import encode, area, toBbox
 import numpy as np
+import shapely.geometry as sg
 from building import Building
 from create_annotation import create_annotation
 from tiled_image import TiledImage, ensure_folder_exists
@@ -37,12 +41,73 @@ class AnnotatedTiledImage(TiledImage):
 
         return list(filter(is_building_in_tile, self.buildings))
 
-
-    def export_instance_segmentation(self, output_folder):
+    def export_semantic_segmentation(self):
         coco = self._create_annotation_base()
         coco['categories'] = [
             {
-                "id": 0,
+                "id": 1,
+                "name": "Roof",
+            },
+            {
+                "id": 2,
+                "name": "Wall"
+            }
+        ]
+        annotations = []
+        annotation_id = self.annotation_id_start
+        ensure_folder_exists('masks')
+        for tile_index in range(len(self)):
+            image_id = self.image_id_start + tile_index
+            buildings = self.get_buildings_in_tile(tile_index)
+            if len(buildings) == 0:
+                continue
+            roofs = []
+            walls = []
+            for building in buildings:
+                surfaces = [self.ic_to_tc(vertices_ic, tile_index) for vertices_ic in building.surface_vertices]
+                for surface, surface_type in zip(surfaces, building.surface_types):
+                    if surface_type == 1:
+                        roofs.append(sg.Polygon(surface))
+                    else: 
+                        walls.append(sg.Polygon(surface))
+            mask = np.zeros(self.tile_size, dtype=np.uint8)
+            rasterize(walls, default_value=2, out_shape=self.tile_size, out=mask)
+            rasterize(roofs, default_value=1, out_shape=self.tile_size, out=mask)
+            wall_rle = encode(np.asfortranarray(mask == 2))
+            wall_rle['counts'] = wall_rle['counts'].decode('utf-8')
+            roof_rle = encode(np.asfortranarray(mask == 1))
+            roof_rle['counts'] = roof_rle['counts'].decode('utf-8')
+            annotations.append({
+                'image_id': image_id,
+                'category_id': 1,
+                'segmentation': roof_rle,
+                'id': annotation_id,
+                'area': int(area(roof_rle)),
+                'bbox': toBbox(roof_rle).tolist()
+            })
+            annotation_id += 1
+            annotations.append({
+                'image_id': image_id,
+                'category_id': 2,
+                'segmentation': wall_rle,
+                'id': annotation_id,
+                'area': int(area(wall_rle)),
+                'bbox': toBbox(wall_rle).tolist()
+            })
+            annotation_id += 1
+
+        coco['annotations'] = annotations
+
+        ensure_folder_exists(f'{self.output_folder}/annotations')
+        with open(f'{self.output_folder}/annotations/segmentation.json', 'w', encoding='utf-8') as f:
+            json.dump(coco, f)
+
+
+    def export_instance_segmentation(self):
+        coco = self._create_annotation_base()
+        coco['categories'] = [
+            {
+                "id": 1,
                 "name": "Builing",
             }
         ]
@@ -51,7 +116,6 @@ class AnnotatedTiledImage(TiledImage):
         for tile_index in range(len(self)):
             image_id = self.image_id_start + tile_index
             buildings = self.get_buildings_in_tile(tile_index)
-            print(tile_index, len(buildings))
             if len(buildings) == 0:
                 continue
             for building in buildings:
@@ -63,8 +127,8 @@ class AnnotatedTiledImage(TiledImage):
 
         coco['annotations'] = annotations
 
-        ensure_folder_exists(f'{output_folder}/annotations')
-        with open(f'{output_folder}/annotations/instances_train.json', 'w', encoding='utf8') as f:
+        ensure_folder_exists(f'{self.output_folder}/annotations')
+        with open(f'{self.output_folder}/annotations/instances_train.json', 'w', encoding='utf8') as f:
             json.dump(coco, f)
 
     def _create_annotation_base(self):
@@ -135,5 +199,7 @@ if __name__ == '__main__':
         cityjson = json.load(f)
     print(' - Complete')
 
-    tiled_image = AnnotatedTiledImage(cityjson, image, image_name, image_data)
-    tiled_image.export_instance_segmentation('test_output')
+    tiled_image = AnnotatedTiledImage(cityjson, image, image_name, image_data, output_folder='outputs/test')
+    # tiled_image.export_image_tiles()
+    tiled_image.export_semantic_segmentation()
+    # tiled_image.export_instance_segmentation()

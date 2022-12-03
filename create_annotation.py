@@ -68,7 +68,7 @@ def create_annotation(surfaces, image_id, annotation_id):
         'segmentation': segmentation,
         'iscrowd': 0,
         'image_id': image_id,
-        'category_id': 0,
+        'category_id': 1,
         'id': annotation_id,
         'bbox': bbox,
         'area': area
