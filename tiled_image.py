@@ -22,17 +22,17 @@ class TiledImage:
             image_name, 
             image_data, 
             tile_size=(1024,1024), 
-            tile_overlap=0,
+            minimum_tile_overlap=0,
             output_folder='outputs'
             ):
         self.image = image
         self.image_name = image_name
         self.image_data = image_data
         self.tile_size = tile_size
-        self.tile_overlap = tile_overlap
+        self.tile_overlap = minimum_tile_overlap
         self.output_folder = output_folder
         self.wc_to_ic = get_wc_to_ic_transformer(image_data)
-        self.anchors = self.get_tile_anchors()
+        self.anchors = self._get_tile_anchors()
 
     def __len__(self):
         return len(self.anchors)
@@ -89,7 +89,7 @@ class TiledImage:
         box = (j, i, j+w, i+h)
         return self.image.crop(box)
     
-    def get_tile_anchors(self) -> List[Anchor]:
+    def _get_tile_anchors(self) -> List[Anchor]:
         im_h, im_w = self.image.height, self.image.width
         tile_h, tile_w = self.tile_size
         num_tiles = (ceil(im_h / (tile_h-self.tile_overlap)), ceil(im_w / (tile_w-self.tile_overlap)))
@@ -121,49 +121,3 @@ if __name__ == '__main__':
     tiled_image.export_image_tiles()
 
 
-
-
-
-
-
-
-
-        # self.wc_to_ic_transformer = get_wc_to_ic_transformer(self.image_data)
-        # self.city_json = city_json
-        # self.buildings_in_image = self._get_buildings_in_image()
-
-    # def _get_buildings_in_image(self):
-    #     corner_points = ["UL", "UR", "LR", "LL"]
-    #     x_coords = [float(self.image_data[f'{point}x']) for point in corner_points]
-    #     y_coords = [float(self.image_data[f'{point}y']) for point in corner_points]
-    #     x_min, x_max = min(x_coords), max(x_coords)
-    #     y_min, y_max = min(y_coords), max(y_coords)
-
-    #     all_buildings = self.city_json['CityObjects']
-    #     all_vertices = np.array(self.city_json['vertices'])
-    #     vertices_in_image = (all_vertices[:, 0] > x_min) & (all_vertices[:,0] < x_max) & (all_vertices[:,1] > y_min) & (all_vertices[:, 1] < y_max)
-    #     buildings_in_image = []
-
-    #     for building in all_buildings.values():
-    #         geometry = building["geometry"]
-    #         if len(geometry) > 1:
-    #             print("Length is:", len(geometry))
-    #         if len(geometry) == 0:
-    #             continue
-    #         boundaries = geometry[0]['boundaries']
-    #         vertices_i = [v for boundary in boundaries for v in boundary[0]]
-            
-    #         if np.any(np.take(vertices_in_image, vertices_i, 0)):
-    #             surfaces = []
-    #             for boundary in boundaries:
-    #                 surfaces.append([self.wc_to_ic_transformer(all_vertices[v_i]) for v_i in boundary[0]])
-    #             vertices = np.array([v for surface in surfaces for v in surface])
-    #             x_min = vertices[:,0].min()
-    #             x_max = vertices[:,0].max()
-    #             y_min = vertices[:,1].min()
-    #             y_max = vertices[:,1].max()
-    #             building['surfaces'] = surfaces
-    #             building['bbox'] = (x_min, y_min, x_max-x_min, y_max-y_min)
-    #             buildings_in_image.append(building)
-        
-    #     return buildings_in_image

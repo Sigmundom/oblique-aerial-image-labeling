@@ -134,20 +134,13 @@ class AnnotatedTiledImage(TiledImage):
     def _create_annotation_base(self):
         return dict(
             info={},
-            licenses=[
-                {
-                    "id": 1,
-                    "name": "Attribution-NonCommercial-ShareAlike License",
-                    "url": "http://creativecommons.org/licenses/by-nc-sa/2.0/",
-                }
-            ],
+            licenses=[],
             images=[
                 {
                     "id": self.image_id_start + i,
                     "height": self.tile_size[0],
                     "width": self.tile_size[1],
                     "file_name": f'{self.image_name}_{i}.jpg',
-                    "license": 1,
                     "date_captured": str(self.get_date_captured())
                 } for i in range(len(self))
             ],
