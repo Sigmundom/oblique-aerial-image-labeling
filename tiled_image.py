@@ -71,6 +71,7 @@ class TiledImage:
             ax.text(x,y, str(i))
 
         plt.savefig(f'{self.output_folder}/image_data/{self.image_name}.png')
+        plt.close()
 
     def get_date_captured(self) -> datetime:
         date, time = self.image_data['ShotDate']

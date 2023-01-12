@@ -8,8 +8,6 @@ def visualize(dataset):
         dataset_type=fo.types.COCODetectionDataset,
         data_path=f'{dataset}/images',
         labels_path=f"{dataset}/annotations/segmentation.json",
-        # labels_path=f"{dataset}/annotations/instances_train.json",
-        include_id=True,
     )
 
     # Verify that the class list for our dataset was imported

@@ -1,3 +1,4 @@
+**/__pycache__
 /__pycache__
 /.vscode
 
@@ -6,6 +7,8 @@
 
 # Output
 /outputs
+/evaluation
+/evaluation1
 
 # Random files
 /trash
