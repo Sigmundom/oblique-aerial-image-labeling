@@ -48,18 +48,23 @@ class TiledImage:
         tile_xy[:,1] = ay - image_xy[:,1]
         return tile_xy
 
-
-    def export_image_tiles(self) -> None:
+    def create_folders(self) -> None:
         ensure_folder_exists(f'{self.output_folder}/images')
         ensure_folder_exists(f'{self.output_folder}/image_data')
-        for i, tile in enumerate(self):
-            tile_name = f'{self.image_name}_{i}'
-            tile.save(f'{self.output_folder}/images/{tile_name}.jpg')
-        
+
+
+    def save_tile(self, index) -> None:
+        tile_name = f'{self.image_name}_{index}'
+        tile = self[index]
+        tile.save(f'{self.output_folder}/images/{tile_name}.jpg')
+
+    def save_tile_data(self) -> None:
+        self.create_folders()
         self.image_data['tiles'] = dict(size=self.tile_size, anchors=self.anchors)
         with open(f'{self.output_folder}/image_data/{self.image_name}.json', 'w', encoding='utf8') as f:
             json.dump(self.image_data, f)
 
+    def save_tile_map(self) -> None:
         ax = plt.gca()
         im_h, im_w = self.image.height, self.image.width
         ax.imshow(self.image, extent=[-im_w/2., im_w/2., -im_h/2., im_h/2. ])
@@ -69,9 +74,19 @@ class TiledImage:
             y = y-h
             ax.add_patch(Rectangle((x,y), width=self.tile_size[1], height=self.tile_size[0], linewidth=1, edgecolor='r', facecolor='none'))
             ax.text(x,y, str(i))
-
-        plt.savefig(f'{self.output_folder}/image_data/{self.image_name}.png')
+        plt.savefig(f'{self.output_folder}/image_data/{self.image_name}.jpg')
         plt.close()
+
+
+    def export_image_tiles(self) -> None:
+        self.create_folders()
+
+        for i in range(len(self)):
+            self.save_tile(i)
+        
+        self.save_tile_data()
+        self.save_tile_map()
+
 
     def get_date_captured(self) -> datetime:
         date, time = self.image_data['ShotDate']

@@ -1,19 +1,20 @@
 
-import itertools
-import json
 from timeit import default_timer
 from typing import List
 from os import path
+import json
+import itertools
 from PIL import Image
+from matplotlib import cm, pyplot as plt
 from rasterio.features import rasterize
-from pycocotools.mask import encode, area, toBbox
+import click
 import numpy as np
 import shapely.geometry as sg
 from shapely.geos import TopologicalError
 from shapely.validation import make_valid
 from building import Building
 from tiled_image import TiledImage, ensure_folder_exists
-from utils.image_data import get_image_data
+from utils import create_coco_rle_annotation, get_image_data
 
 Image.MAX_IMAGE_PIXELS = 120000000
 
@@ -51,26 +52,22 @@ class AnnotatedTiledImage(TiledImage):
 
         return list(filter(is_building_in_tile, self.buildings))
 
-    def export_semantic_segmentation(self):
-        coco = self._create_annotation_base()
-        coco['categories'] = [
-            {
-                "id": 1,
-                "name": "Roof",
-            },
-            {
-                "id": 2,
-                "name": "Wall"
-            }
-        ]
+    def export_semantic_segmentation(self, annotation_format, label_walls):
+        ensure_folder_exists(f'{self.output_folder}/images')
+        if annotation_format == 'coco':
+            ensure_folder_exists(f'{self.output_folder}/annotations')
+        elif annotation_format == 'mask':
+            ensure_folder_exists(f'{self.output_folder}/labels') 
+        self.save_tile_data()
+
         annotations = []
-        annotation_id = self.annotation_id_start
-        ensure_folder_exists('masks')
         for tile_index in range(len(self)):
-            image_id = self.image_id_start + tile_index
             buildings = self.get_buildings_in_tile(tile_index)
             if len(buildings) == 0:
                 continue
+
+            image_id = self.image_id_start + tile_index
+            self.save_tile(tile_index)
             roofs = []
             walls = []
             for building in buildings:
@@ -80,38 +77,45 @@ class AnnotatedTiledImage(TiledImage):
                         roofs.append(sg.Polygon(surface))
                     else: 
                         walls.append(sg.Polygon(surface))
+            
             mask = np.zeros(self.tile_size, dtype=np.uint8)
-            rasterize(walls, default_value=2, out_shape=self.tile_size, out=mask)
-            rasterize(roofs, default_value=1, out_shape=self.tile_size, out=mask)
-            wall_rle = encode(np.asfortranarray(mask == 2))
-            wall_rle['counts'] = wall_rle['counts'].decode('utf-8')
-            roof_rle = encode(np.asfortranarray(mask == 1))
-            roof_rle['counts'] = roof_rle['counts'].decode('utf-8')
-            annotations.append({
-                'image_id': image_id,
-                'category_id': 1,
-                'segmentation': roof_rle,
-                'id': annotation_id,
-                'area': int(area(roof_rle)),
-                'bbox': toBbox(roof_rle).tolist(),
-            })
-            annotation_id += 1
-            annotations.append({
-                'image_id': image_id,
-                'category_id': 2,
-                'segmentation': wall_rle,
-                'id': annotation_id,
-                'area': int(area(wall_rle)),
-                'bbox': toBbox(wall_rle).tolist(),
-            })
-            annotation_id += 1
+            if label_walls:
+                rasterize(walls, default_value=2, out_shape=self.tile_size, out=mask)
+                rasterize(roofs, default_value=1, out_shape=self.tile_size, out=mask)
+                wall_mask = mask == 2
+                roof_mask = mask == 1
+                if annotation_format=='coco':
+                    annotations.append(create_coco_rle_annotation(image_id, 1, roof_mask))
+                    annotations.append(create_coco_rle_annotation(image_id, 2, wall_mask))
+            else:
+                rasterize(walls, default_value=1, out_shape=self.tile_size, out=mask)
+                rasterize(roofs, default_value=1, out_shape=self.tile_size, out=mask)
+                if annotation_format=='coco':
+                    annotations.append(create_coco_rle_annotation(image_id, 1, mask))
 
-        coco['annotations'] = annotations
-
-        ensure_folder_exists(f'{self.output_folder}/annotations')
-        with open(f'{self.output_folder}/annotations/segmentation.json', 'w', encoding='utf-8') as f:
-            json.dump(coco, f)
-
+            if annotation_format == 'mask':
+                plt.imsave(f'{self.output_folder}/labels/{self.image_name}_{tile_index}.png', mask, cmap=cm.gray)
+            
+       
+        if annotation_format == 'coco':
+            coco = self._create_annotation_base()
+            if label_walls:
+                coco['categories'] = [{
+                        "id": 1,
+                        "name": "Roof",
+                    },
+                    {
+                        "id": 2,
+                        "name": "Wall"
+                    }]
+            else:
+                coco['categories'] = [{
+                    "id": 1,
+                    "name": "Building"
+                }]
+            coco['annotations'] = annotations
+            with open(f'{self.output_folder}/annotations/segmentation.json', 'w', encoding='utf-8') as f:
+                json.dump(coco, f)
 
     def export_instance_segmentation(self):
         coco = self._create_annotation_base()
@@ -239,75 +243,117 @@ class AnnotatedTiledImage(TiledImage):
             if np.any(np.take(vertices_in_image, vertices_i, 0)):
                 building = Building()
                 surfaces = geometry[0]['semantics']['surfaces']
+                draw = False
                 for boundary, surface in zip(boundaries, surfaces):
-                    surface_type = 1 if surface['type'] == 'RoofSurface' else 2 # Assuming there are only 'RoofSurface' and 'WallSurface'
                     vertices = np.take(all_vertices, boundary[0], axis=0)
                     vertices_ic = self.wc_to_ic(vertices)
+                    if surface['type'] == 'WallSurface':
+                        if np.ptp(vertices[:,2]) <= 0.75:
+                            draw = True
+                            surface_type = 3    
+                        else: 
+                            surface_type = 2
+                    elif surface['type'] == 'RoofSurface':
+                        surface_type = 1
+                    else:
+                        raise Exception(f'Surface type {surface_type} not recoginized')
+                    # print(*vertices[:,2], surface_type)
                     building.add_surface(vertices_ic, surface_type)
                 building.calculate_bbox()
                 buildings_in_image.append(building)
+                if draw:
+                    building.draw(True)
+                # print('###############################')
+
         
         return buildings_in_image
 
-
-if __name__ == '__main__':
-    configs = [
-        dict(
-            image_path = 'images/Bakoverrettede bilder/30196_127_02033_210427_Cam4B.jpg',
-            seamline_path = 'images/Somlinjefiler/cam4B.sos',
-            output_folder = 'outputs/back'
-        ),
-        dict(
-            image_path = 'images/Framoverrettede bilder/30196_127_02023_210427_Cam7F.jpg',
-            seamline_path = 'images/Somlinjefiler/cam7F.sos',
-            output_folder = 'outputs/front'
-        ),
-        dict(
-            image_path = 'images/Høyrerettede bilder/30196_124_01897_210427_Cam5R.jpg',
-            seamline_path = 'images/Somlinjefiler/cam5R.sos',
-            output_folder = 'outputs/right'   
-        ),
-        dict(
-            image_path = 'images/Venstrerettede bilder/30196_128_02062_210427_Cam6L.jpg',
-            seamline_path = 'images/Somlinjefiler/cam6L.sos',
-            output_folder = 'outputs/left'   
-        ),
-        # dict(
-        #     image_path = 'images/Vertikalbilder/30196_127_02029_210427_Cam0N.jpg',
-        #     seamline_path = 'images/Somlinjefiler/cam0N.sos',
-        #     output_folder = 'outputs/vertikal'   
-        # )
-    ]
+@click.command()
+@click.argument('image_path')
+@click.argument('seamline_path')
+@click.option('-o', '--output-folder', default='outputs')
+@click.option('-ts', '--tile-size', default=512) 
+@click.option('-f','--annotation-format', default='mask', type=click.Choice(['mask', 'coco'], case_sensitive=False))
+@click.option('-w', '--label-walls', is_flag=True)
+def semantic_segmentation(image_path, seamline_path, output_folder, tile_size, annotation_format, label_walls):
     t_start = default_timer()
     print('Loading CityGML', end='')
     with open('3DBYGG_BASISDATA_4202_GRIMSTAD_5972_FKB-BYGNING_SOSI_CityGML_reprojected.json', encoding='utf8') as f:
         cityjson = json.load(f)
     print(' - Complete - Took', default_timer() - t_start, 'seconds' )
 
-    for c in configs:
-        t = default_timer()
-        image_path = c['image_path']
-        seamline_path = c['seamline_path']
-        output_folder = c['output_folder']
-        image_name = path.basename(image_path).split('.')[0]
-        print('Processing ', image_name, '...')
-        image = Image.open(image_path)
-        image_data = get_image_data(seamline_path, image_name)
-        print('Reading seamline file took', default_timer()-t, 'seconds')
-        tiled_image = AnnotatedTiledImage(cityjson, image, image_name, image_data, output_folder=output_folder, tile_size=(768, 768))
+    t = default_timer()
+    image_name = path.basename(image_path).split('.')[0]
+    print('Processing ', image_name, '...')
+    image = Image.open(image_path)
+    image_data = get_image_data(seamline_path, image_name)
+    
+    tiled_image = AnnotatedTiledImage(cityjson, image, image_name, image_data, output_folder=output_folder, tile_size=(tile_size, tile_size))
 
-        print('Exporting images', end=' - ')
-        t = default_timer()
-        tiled_image.export_image_tiles()
-        print(default_timer() - t, 'seconds')
-        print('Exporting semantic segmentation', end=' - ')
-        t = default_timer()
-        tiled_image.export_semantic_segmentation()
-        print(default_timer() -t, 'seconds')
-        print('Exporting instance segmentation')
-        t = default_timer()
-        tiled_image.export_instance_segmentation()
-        print(default_timer() -t, 'seconds')
+    print('Exporting semantic segmentation', end=' - ')
+    t = default_timer()
+    tiled_image.export_semantic_segmentation(annotation_format, label_walls)
+    print(default_timer() -t, 'seconds')
 
-    total_time = default_timer() - t_start
-    print(f'Whole process took {total_time} seconds for {len(configs)} images.\n That is {total_time/len(configs)} seconds per image')
+
+# if __name__ == '__main__':
+#     configs = [
+#         # dict(
+#         #     image_path = 'images/Bakoverrettede bilder/30196_127_02033_210427_Cam4B.jpg',
+#         #     seamline_path = 'images/Somlinjefiler/cam4B.sos',
+#         #     output_folder = 'outputs/back'
+#         # ),
+#         # dict(
+#         #     image_path = 'images/Framoverrettede bilder/30196_127_02023_210427_Cam7F.jpg',
+#         #     seamline_path = 'images/Somlinjefiler/cam7F.sos',
+#         #     output_folder = 'outputs/front'
+#         # ),
+#         # dict(
+#         #     image_path = 'images/Høyrerettede bilder/30196_124_01897_210427_Cam5R.jpg',
+#         #     seamline_path = 'images/Somlinjefiler/cam5R.sos',
+#         #     output_folder = 'outputs/right'   
+#         # ),
+#         # dict(
+#         #     image_path = 'images/Venstrerettede bilder/30196_128_02062_210427_Cam6L.jpg',
+#         #     seamline_path = 'images/Somlinjefiler/cam6L.sos',
+#         #     output_folder = 'outputs/left'   
+#         # ),
+#         dict(
+#             image_path = 'images/Vertikalbilder/30196_127_02029_210427_Cam0N.jpg',
+#             seamline_path = 'images/Somlinjefiler/cam0N.sos',
+#             output_folder = 'outputs/vertikal/512'   
+#         )
+#     ]
+#     t_start = default_timer()
+#     print('Loading CityGML', end='')
+#     with open('3DBYGG_BASISDATA_4202_GRIMSTAD_5972_FKB-BYGNING_SOSI_CityGML_reprojected.json', encoding='utf8') as f:
+#         cityjson = json.load(f)
+#     print(' - Complete - Took', default_timer() - t_start, 'seconds' )
+
+#     for c in configs:
+#         t = default_timer()
+#         image_path = c['image_path']
+#         seamline_path = c['seamline_path']
+#         output_folder = c['output_folder']
+#         image_name = path.basename(image_path).split('.')[0]
+#         print('Processing ', image_name, '...')
+#         image = Image.open(image_path)
+#         image_data = get_image_data(seamline_path, image_name)
+#         print('Reading seamline file took', default_timer()-t, 'seconds')
+#         tiled_image = AnnotatedTiledImage(cityjson, image, image_name, image_data, output_folder=output_folder, tile_size=(512, 512))
+
+#         print('Exporting images', end=' - ')
+#         t = default_timer()
+#         tiled_image.export_image_tiles()
+#         print(default_timer() - t, 'seconds')
+#         print('Exporting semantic segmentation', end=' - ')
+#         # t = default_timer()
+#         # tiled_image.export_semantic_segmentation()
+#         # print(default_timer() -t, 'seconds')
+#         # print('Exporting instance segmentation')
+#         t = default_timer()
+#         tiled_image.export_instance_segmentation()
+#         print(default_timer() -t, 'seconds')
+
+#     total_time = default_timer() - t_start
+#     print(f'Whole process took {total_time} seconds for {len(configs)} images.\n That is {total_time/len(configs)} seconds per image')
