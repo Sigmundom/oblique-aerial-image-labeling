@@ -1,15 +1,13 @@
-from datetime import datetime
 import json
+from datetime import datetime
 from math import ceil
 from os import path, makedirs
 from typing import List
+import shapely.geometry as sg
 from PIL import Image
-from matplotlib import pyplot as plt
-from matplotlib.patches import Rectangle
-import numpy as np
+from tile import Tile
 from utils import get_image_data
 from utils.transformers.wc_to_ic import get_wc_to_ic_transformer
-from utils.types import Anchor
 
 def ensure_folder_exists(folder):
     if not path.isdir(folder):
@@ -18,7 +16,7 @@ def ensure_folder_exists(folder):
 class TiledImage:
     def __init__(
             self, 
-            image,
+            image: Image,
             image_name, 
             image_data, 
             tile_size=(1024,1024), 
@@ -32,60 +30,44 @@ class TiledImage:
         self.tile_overlap = minimum_tile_overlap
         self.output_folder = output_folder
         self.wc_to_ic = get_wc_to_ic_transformer(image_data)
-        self.anchors = self._get_tile_anchors()
+        self.tiles = self._get_tiles()
 
     def __len__(self):
-        return len(self.anchors)
+        return len(self.tiles)
 
     def __getitem__(self, index):
-        return self.get_tile(self.anchors[index])
+        return self.tiles[index]
+        
 
-    def ic_to_tc(self, image_xy: np.ndarray, tile_index:int) -> np.ndarray:
-        assert image_xy.ndim == 2
-        ax, ay = self.anchors[tile_index]
-        tile_xy = np.empty_like(image_xy)
-        tile_xy[:,0] = image_xy[:,0] - ax
-        tile_xy[:,1] = ay - image_xy[:,1]
-        return tile_xy
+    # def save_tile_map(self) -> None:
+    #     ax = plt.gca()
+    #     im_h, im_w = self.image.height, self.image.width
+    #     ax.imshow(self.image, extent=[-im_w/2., im_w/2., -im_h/2., im_h/2. ])
+    #     for i, anchor in enumerate(self.anchors):
+    #         x, y = anchor
+    #         h = self.tile_size[0]
+    #         y = y-h
+    #         ax.add_patch(Rectangle((x,y), width=self.tile_size[1], height=self.tile_size[0], linewidth=1, edgecolor='r', facecolor='none'))
+    #         ax.text(x,y, str(i))
+    #     plt.savefig(f'{self.output_folder}/image_data/{self.image_name}.jpg')
+    #     plt.close()
 
-    def create_folders(self) -> None:
-        ensure_folder_exists(f'{self.output_folder}/images')
+    def save_image_data(self):
         ensure_folder_exists(f'{self.output_folder}/image_data')
-
-
-    def save_tile(self, index) -> None:
-        tile_name = f'{self.image_name}_{index}'
-        tile = self[index]
-        tile.save(f'{self.output_folder}/images/{tile_name}.jpg')
-
-    def save_tile_data(self) -> None:
-        self.create_folders()
-        self.image_data['tiles'] = dict(size=self.tile_size, anchors=self.anchors)
+        self.image_data['tile_size'] = self.tile_size
         with open(f'{self.output_folder}/image_data/{self.image_name}.json', 'w', encoding='utf8') as f:
             json.dump(self.image_data, f)
 
-    def save_tile_map(self) -> None:
-        ax = plt.gca()
-        im_h, im_w = self.image.height, self.image.width
-        ax.imshow(self.image, extent=[-im_w/2., im_w/2., -im_h/2., im_h/2. ])
-        for i, anchor in enumerate(self.anchors):
-            x, y = anchor
-            h = self.tile_size[0]
-            y = y-h
-            ax.add_patch(Rectangle((x,y), width=self.tile_size[1], height=self.tile_size[0], linewidth=1, edgecolor='r', facecolor='none'))
-            ax.text(x,y, str(i))
-        plt.savefig(f'{self.output_folder}/image_data/{self.image_name}.jpg')
-        plt.close()
-
-
     def export_image_tiles(self) -> None:
-        self.create_folders()
+        # Save image data
+        self.save_image_data()
 
-        for i in range(len(self)):
-            self.save_tile(i)
-        
-        self.save_tile_data()
-        self.save_tile_map()
+        # Save tile jpgs
+        ensure_folder_exists(f'{self.output_folder}/images')
+        for tile in self:
+            tile.save()
+
+        # self.save_tile_map()
 
 
     def get_date_captured(self) -> datetime:
@@ -96,33 +78,26 @@ class TiledImage:
         s = int(time[4:6])
         return datetime(year, month, day, h, m, s)
 
-    def get_tile(self, anchor: Anchor) -> Image:
-        im_w, im_h = self.image.size
-        h, w = self.tile_size
-        x, y = anchor
-        i = im_h//2 - y
-        j = x + im_w//2
-        box = (j, i, j+w, i+h)
-        return self.image.crop(box)
-    
-    def _get_tile_anchors(self) -> List[Anchor]:
+    def _get_tiles(self) -> List[Tile]:
         im_h, im_w = self.image.height, self.image.width
         tile_h, tile_w = self.tile_size
         num_tiles = (ceil(im_h / (tile_h-self.tile_overlap)), ceil(im_w / (tile_w-self.tile_overlap)))
         
         step = (ceil((im_h-tile_h) / num_tiles[0]), ceil((im_w-tile_w) / num_tiles[1]))
 
-        anchor_points = []
+        tiles = []
 
         for tile_row in range(num_tiles[0]+1):
-            y = -tile_row*step[0] if tile_row < num_tiles[0] else -im_h+tile_h
-            y += im_h//2
+            i = im_h-tile_row*step[0] if tile_row < num_tiles[0] else tile_h
+            y = -i + im_h//2 
             for tile_col in range(num_tiles[1]+1):
-                x = tile_col*step[1] if tile_col < num_tiles[1] else im_w-tile_w
-                x -= im_w//2
-                anchor_points.append((x,y))
+                j = tile_col*step[1] if tile_col < num_tiles[1] else im_w-tile_w
+                x = j-im_w//2
+                crop_box = (j, i-tile_h, j+tile_w, i) # region in pixel coordinates for PIL.crop
+                bbox = sg.box(x, y, x+tile_w, y+tile_h) # Bbox in image coordinates
+                tiles.append(Tile(self, crop_box, bbox))
 
-        return anchor_points
+        return tiles
 
 
 
