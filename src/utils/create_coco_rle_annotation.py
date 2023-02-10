@@ -14,9 +14,3 @@ def create_coco_rle_annotation(image_id, category_id, mask):
         'bbox': toBbox(rle).tolist(),
     }
 create_coco_rle_annotation.id_counter = 0
-
-if __name__=='__main__':
-    print(create_coco_rle_annotation(1,2, np.zeros((3,3), dtype=np.uint8)))
-    print(create_coco_rle_annotation(1,2, np.zeros((3,3), dtype=np.uint8)))
-    print(create_coco_rle_annotation(1,2, np.zeros((3,3), dtype=np.uint8)))
-    print(create_coco_rle_annotation(1,2, np.zeros((3,3), dtype=np.uint8)))

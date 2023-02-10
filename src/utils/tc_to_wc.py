@@ -3,8 +3,7 @@ from math import cos, sin
 import matplotlib.pyplot as plt
 from PIL import Image
 import numpy as np
-
-from utils.transformers.wc_to_ic import get_wc_to_ic_transformer
+from . import get_wc_to_ic_transformer
 
 image_folder = 'test_output/images'
 image_data_folder = 'test_output/image_data'

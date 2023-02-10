@@ -1,16 +1,17 @@
-from setuptools import setup
+from setuptools import  find_packages, setup
 
 setup(
-    name='Skråfoto',
+    name='Skrafoto',
     version='0.1.0',
     py_modules=['skrafoto'],
     install_requires=[
         'Click',
     ],
+    packages=find_packages(where='src', ),
+    package_dir = {"": "src"},
     entry_points={
         'console_scripts': [
-            'coco-reformat = coco_reformat:main',
-            'semantic-segmentation = annotated_tiled_image:semantic_segmentation',
+            'semantic-segmentation = scripts:semantic_segmentation',
         ],
     },
 )

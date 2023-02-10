@@ -1,6 +1,5 @@
 import shapely.geometry as sg
-from shapely.affinity import translate, affine_transform
-import numpy as np
+from shapely.affinity import affine_transform
 
 from typing import TYPE_CHECKING
 

@@ -2,10 +2,9 @@ from matplotlib import cm
 import numpy as np
 import matplotlib.pyplot as plt
 from rasterio.features import rasterize
-from building import Building
-from enums import SurfaceType
-from tile import Tile
-from utils.annotation import create_coco_rle_annotation
+from utils import SurfaceType, create_coco_rle_annotation
+from .building import Building 
+from .tile import Tile
 
 class AnnotatedTile(Tile):  
     def __init__(self, tile:Tile, buildings:list[Building]):

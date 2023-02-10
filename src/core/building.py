@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 import numpy as np
 
-from enums import SurfaceType
+from utils import SurfaceType
 
 colors = ['blue', 'green', 'red', 'yellow']
 

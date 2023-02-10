@@ -1,17 +1,13 @@
 import json
 from datetime import datetime
 from math import ceil
-from os import path, makedirs
+from os import path
 from typing import List
 import shapely.geometry as sg
 from PIL import Image
-from tile import Tile
-from utils import get_image_data
-from utils.transformers.wc_to_ic import get_wc_to_ic_transformer
+from utils import get_image_data, get_wc_to_ic_transformer, ensure_folder_exists
+from .tile import Tile
 
-def ensure_folder_exists(folder):
-    if not path.isdir(folder):
-        makedirs(folder)
 
 class TiledImage:
     def __init__(

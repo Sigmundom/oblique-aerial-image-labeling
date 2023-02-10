@@ -1,5 +1,5 @@
 
-from .sosi import read_sos
+from libs.sosi import read_sos
 
 def get_image_data(seamline_path, image_name):
     print('Reading seamline file:')

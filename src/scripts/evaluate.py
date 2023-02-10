@@ -1,10 +1,6 @@
-import json
 from matplotlib import pyplot as plt
-from matplotlib.patches import Polygon
 import numpy as np
 from pycocotools.coco import COCO
-import shapely.geometry as sg
-from rasterio.features import rasterize
 from pycocotools.mask import merge, decode, area, iou, frPyObjects
 
 
