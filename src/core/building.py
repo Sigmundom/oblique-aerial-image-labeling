@@ -15,25 +15,28 @@ def remove_indices(original_list: list, indices:list):
 
 
 class Building():
-    def __init__(self, surface_types: list[SurfaceType], surfaces_wc: list[np.ndarray], surfaces_ic: list[np.ndarray]):
+    def __init__(self, surface_types: list[SurfaceType], surfaces_wc: list[np.ndarray]):
         self.surface_types = surface_types
         self.surfaces_wc = surfaces_wc
-        self.surfaces_ic = surfaces_ic
+        self.surfaces_ic = None
         self.detect_terraces()
 
         # Create polygons and sort them based on surface type
-        self.surfaces = {surface_type: [] for surface_type in SurfaceType}
-        for surface_type, surface in zip(surface_types, surfaces_ic):
-            self.surfaces[surface_type].append(sg.Polygon(surface))
+        # self.surfaces = {surface_type: [] for surface_type in SurfaceType}
+        # for surface_type, surface in zip(surface_types, surfaces_ic):
+        #     self.surfaces[surface_type].append(sg.Polygon(surface))
 
-        # Calculate bbox
-        vertices = np.concatenate(self.surfaces_ic)
-        x_min, y_min = vertices.min(axis=0)
-        x_max, y_max = vertices.max(axis=0)
-        self.bbox = sg.box(x_min, y_min, x_max, y_max)
+        # Calculate wc_bbox
+        vertices = np.concatenate(self.surfaces_wc)
+        x_min, y_min = vertices[:,:2].min(axis=0)
+        x_max, y_max = vertices[:,:2].max(axis=0)
+        self.wc_bbox = sg.box(x_min, y_min, x_max, y_max)
 
-    def __getitem__(self, surface_type: SurfaceType):
-        return self.surfaces[surface_type]
+    # def __getitem__(self, surface_type: SurfaceType):
+    #     return self.surfaces[surface_type]
+
+    def transform_to_image_coordinates(self, wc_to_ic):
+        self.surfaces_ic = [wc_to_ic(s) for s in self.surfaces_wc]
 
 
     def detect_terraces(self):

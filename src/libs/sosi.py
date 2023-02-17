@@ -65,8 +65,9 @@ def read_sos(filename, indent_char='.'):
             result = chardet.detect(raw)
             encoding = result['encoding']
 
-        encoding = 'latin-1'
-
+        # encoding = 'latin-1'
+        encoding = 'ISO8859-1'
+        
         return io.open(filename, 'r', encoding=encoding)
 
 

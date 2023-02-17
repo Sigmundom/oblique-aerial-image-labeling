@@ -12,6 +12,7 @@ setup(
     entry_points={
         'console_scripts': [
             'semantic-segmentation = scripts:semantic_segmentation',
+            'create_dataset = scripts:create_dataset'
         ],
     },
 )
