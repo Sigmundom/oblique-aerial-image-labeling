@@ -2,7 +2,7 @@ import json
 from datetime import datetime
 from math import ceil
 from os import path
-from typing import List
+from typing import List, Union
 import shapely.geometry as sg
 from PIL import Image
 from utils import get_image_data, get_wc_to_ic_transformer, ensure_folder_exists
@@ -15,14 +15,17 @@ class TiledImage:
             image: Image,
             image_name, 
             image_data, 
-            tile_size=(1024,1024), 
+            tile_size: Union[int, tuple[int, int]]=(1024,1024), 
             minimum_tile_overlap=0,
             output_folder='outputs'
             ):
         self.image = image
         self.image_name = image_name
         self.image_data = image_data
-        self.tile_size = tile_size
+        if isinstance(tile_size, int):
+            self.tile_size = (tile_size, tile_size)
+        else:
+            self.tile_size = tile_size
         self.tile_overlap = minimum_tile_overlap
         self.output_folder = output_folder
         self.wc_to_ic = get_wc_to_ic_transformer(image_data)

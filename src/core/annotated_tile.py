@@ -22,16 +22,16 @@ class AnnotatedTile(Tile):
         mask = np.zeros(tile_size, dtype=np.uint8)
         walls = self.get_all_surfaces_of_type(SurfaceType.WALL)
         roofs = self.get_all_surfaces_of_type(SurfaceType.ROOF)
-        terraces = self.get_all_surfaces_of_type(SurfaceType.TERRACE)
-        terraces_wall = self.get_all_surfaces_of_type(SurfaceType.TERRACE_WALL)
-        handrails = self.get_all_surfaces_of_type(SurfaceType.AUTO_GENERATED_HANDRAIL)
+        # terraces = self.get_all_surfaces_of_type(SurfaceType.TERRACE)
+        # terraces_wall = self.get_all_surfaces_of_type(SurfaceType.TERRACE_WALL)
+        # handrails = self.get_all_surfaces_of_type(SurfaceType.AUTO_GENERATED_HANDRAIL)
         if label_walls:
-            if len(terraces) > 0:
-                rasterize(terraces, default_value=3, out_shape=tile_size, out=mask)
-            if len(handrails) > 0:
-                rasterize(handrails, default_value=5, out_shape=tile_size, out=mask)
-            if len(terraces_wall) > 0:
-                rasterize(terraces_wall, default_value=4, out_shape=tile_size, out=mask)
+            # if len(terraces) > 0:
+            #     rasterize(terraces, default_value=3, out_shape=tile_size, out=mask)
+            # if len(handrails) > 0:
+            #     rasterize(handrails, default_value=5, out_shape=tile_size, out=mask)
+            # if len(terraces_wall) > 0:
+            #     rasterize(terraces_wall, default_value=4, out_shape=tile_size, out=mask)
             if len(walls) > 0:
                 rasterize(walls, default_value=2, out_shape=tile_size, out=mask)
             if len(roofs) > 0:
@@ -48,21 +48,21 @@ class AnnotatedTile(Tile):
         if label_walls:
             wall_mask = mask == 2
             roof_mask = mask == 1
-            terrace_mask = mask == 3
-            terrace_wall_mask = mask == 4
-            handrail_mask = mask == 5
+            # terrace_mask = mask == 3
+            # terrace_wall_mask = mask == 4
+            # handrail_mask = mask == 5
         
             annotations = []
             if (np.any(roof_mask)):
                 annotations.append(create_coco_rle_annotation(tile_id, 1, roof_mask))
             if (np.any(wall_mask)):
                 annotations.append(create_coco_rle_annotation(tile_id, 2, wall_mask))
-            if (np.any(terrace_mask)):
-                annotations.append(create_coco_rle_annotation(tile_id, 3, terrace_mask))
-            if (np.any(terrace_wall_mask)):
-                annotations.append(create_coco_rle_annotation(tile_id, 4, terrace_wall_mask))
-            if (np.any(handrail_mask)):
-                annotations.append(create_coco_rle_annotation(tile_id, 5, handrail_mask))
+            # if (np.any(terrace_mask)):
+            #     annotations.append(create_coco_rle_annotation(tile_id, 3, terrace_mask))
+            # if (np.any(terrace_wall_mask)):
+            #     annotations.append(create_coco_rle_annotation(tile_id, 4, terrace_wall_mask))
+            # if (np.any(handrail_mask)):
+            #     annotations.append(create_coco_rle_annotation(tile_id, 5, handrail_mask))
         else:
             annotations = [create_coco_rle_annotation(tile_id, 1, mask)]
 
