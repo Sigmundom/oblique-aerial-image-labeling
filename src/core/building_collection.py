@@ -4,7 +4,7 @@ import numpy as np
 from shapely.strtree import STRtree
 import shapely.geometry as sg
 from utils import SurfaceType, get_municipality_border
-from src.core.building import Building
+from core.building import Building
 
 def plot_polygon(polygon: sg.Polygon, color='blue'):
     arr = np.array(polygon.exterior.coords)
