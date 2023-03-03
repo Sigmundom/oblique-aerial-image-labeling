@@ -10,13 +10,7 @@ import shapely.geometry as sg
 
 from core import AnnotatedTiledImage, WCBuildingCollection
 from libs.sosi import read_sos
-
-def get_image_bbox(image_extent: OrderedDict):
-    image_bbox = np.array(list(image_extent.values())[0], dtype=np.float64)
-    image_bbox[:, [1, 0]] = image_bbox[:, [0, 1]]
-
-    image_bbox /= 100 # Coordinates are given in cm for some reason. Convert to m.
-    return sg.Polygon(image_bbox)
+from utils import get_image_bbox
 
 
 def is_image_in_area(image_data: dict, image_bbox: sg.Polygon, area: sg.Polygon, available_images: list[str]) -> bool:
