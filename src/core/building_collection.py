@@ -1,4 +1,5 @@
 import json
+from timeit import default_timer
 from matplotlib import pyplot as plt
 import numpy as np
 from shapely.strtree import STRtree
@@ -23,18 +24,14 @@ class WCBuildingCollection():
 
     def _find_outline(self, municipality):
         municipality_border = get_municipality_border(municipality)
-        cityjson_convex_hull = sg.MultiPoint(self.vertices[:,:2]).convex_hull
-        # plot_polygon(municipality_border, 'green')
-        # plot_polygon(cityjson_convex_hull, 'red')
-        
+        cityjson_convex_hull = sg.MultiPoint(self.vertices[:,:2]).convex_hull       
         res = municipality_border.intersection(cityjson_convex_hull)
-        # plot_polygon(res)
-        # plt.show()
         return res
 
     def _get_buildings_and_STRtree(self):
         if self._STRtree is None:
             buildings = []
+            t = default_timer()
             for building in self.city_objects.values():
                 geometry = building["geometry"]
                 if len(geometry) > 1:
@@ -48,8 +45,10 @@ class WCBuildingCollection():
                 
                 building = Building(surface_types, surfaces_wc)
                 buildings.append(building)
-
+            print(f'Create buildings took {default_timer()-t} seconds')
+            t = default_timer()
             self._STRtree = STRtree([b.bbox_wc for b in buildings])
+            print(f'Create STRtree {default_timer()-t} seconds')
             self._buildings = np.array(buildings)
         return self._buildings, self._STRtree
 

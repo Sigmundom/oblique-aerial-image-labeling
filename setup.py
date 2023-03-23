@@ -14,6 +14,9 @@ setup(
         'tqdm',
         'chardet',
         'pycocotools',
+        'dbfread',
+        'utm',
+        'shapefile'
     ],
     packages=find_packages(where='src', ),
     package_dir = {"": "src"},

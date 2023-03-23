@@ -21,7 +21,7 @@ class Building():
         self._surfaces_ic = None
         self._bbox_ic = None
         self._surfaces = None
-        self.detect_terraces()
+        self._has_detected_terraces = False
 
         # Calculate bbox in world coordinates
         vertices = np.concatenate(self._surfaces_wc)
@@ -35,6 +35,8 @@ class Building():
         return self._surfaces[surface_type]
 
     def transform_to_image_coordinates(self, wc_to_ic):
+        if not self._has_detected_terraces:
+            self.detect_terraces()
         self._surfaces_ic = [wc_to_ic(s) for s in self._surfaces_wc]
 
         # Create polygons and sort them based on surface type
@@ -117,6 +119,7 @@ class Building():
             wall = self._surfaces_wc[i]
             if not any([np.any(np.all(np.equal(wall[0,:2], roof[:,:2]), axis=1)) for roof in roofs]):
                 self._surface_types[i] = SurfaceType.TERRACE_WALL
+        self._has_detected_terraces = True
 
                     
 

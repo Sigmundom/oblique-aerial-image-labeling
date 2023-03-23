@@ -28,7 +28,6 @@ class AnnotatedTiledImage(TiledImage):
         self.common_tile_info = {
             "height": self.tile_size[0],
             "width": self.tile_size[1],
-            "date_captured": str(self.get_date_captured())
         }
         for building in buildings:
             building.transform_to_image_coordinates(self.wc_to_ic)
@@ -36,8 +35,6 @@ class AnnotatedTiledImage(TiledImage):
         search_tree = STRtree([b.bbox_ic for b in buildings])
         buildings = np.array(buildings)
         self.tiles = [AnnotatedTile(tile, list(buildings.take(search_tree.query(tile.bbox)))) for tile in self]
-        
-
 
     def export_semantic_segmentation(self, annotation_format, label_walls):
         self.save_image_data()

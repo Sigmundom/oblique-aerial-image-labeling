@@ -4,7 +4,7 @@ from shapely.affinity import affine_transform
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from tiled_image import TiledImage
+    from core.tiled_image import TiledImage
 
 
 class Tile():
