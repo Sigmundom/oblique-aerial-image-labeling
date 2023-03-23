@@ -1,34 +1,30 @@
-import json
-from datetime import datetime
 from math import ceil
 from os import path
-from typing import List, Union
+from typing import List
 import shapely.geometry as sg
 from PIL import Image
-from utils import get_image_data, get_wc_to_ic_transformer, ensure_folder_exists
+from core.image_data import ImageDataRecord
+from utils import get_image_data, ensure_folder_exists
 from .tile import Tile
-
 
 class TiledImage:
     def __init__(
             self, 
-            image: Image,
-            image_name, 
-            image_data, 
-            tile_size: Union[int, tuple[int, int]]=(1024,1024), 
+            image_data: ImageDataRecord,
+            tile_size: int=512, 
             minimum_tile_overlap=0,
             output_folder='outputs'
             ):
-        self.image = image
-        self.image_name = image_name
         self.image_data = image_data
+        self.image = Image.open(image_data.path)
+        self.wc_to_ic = image_data.wc_to_ic
+        self.image_name = image_data.name
         if isinstance(tile_size, int):
             self.tile_size = (tile_size, tile_size)
         else:
             self.tile_size = tile_size
         self.tile_overlap = minimum_tile_overlap
         self.output_folder = output_folder
-        self.wc_to_ic = get_wc_to_ic_transformer(image_data)
         self.tiles = self._get_tiles()
 
     def __len__(self):
@@ -36,6 +32,9 @@ class TiledImage:
 
     def __getitem__(self, index):
         return self.tiles[index]
+    
+    def __del__(self):
+        self.image.close()
         
 
     # def save_tile_map(self) -> None:
@@ -52,10 +51,9 @@ class TiledImage:
     #     plt.close()
 
     def save_image_data(self):
-        ensure_folder_exists(f'{self.output_folder}/image_data')
-        self.image_data['tile_size'] = self.tile_size
-        with open(f'{self.output_folder}/image_data/{self.image_name}.json', 'w', encoding='utf8') as f:
-            json.dump(self.image_data, f)
+        folder = f'{self.output_folder}/image_data'
+        ensure_folder_exists(folder)
+        self.image_data.save_image_data(folder, self.tile_size)
 
     def export_image_tiles(self) -> None:
         # Save image data
@@ -69,13 +67,13 @@ class TiledImage:
         # self.save_tile_map()
 
 
-    def get_date_captured(self) -> datetime:
-        date, time = self.image_data['ShotDate']
-        year, month, day = [int(x) for x in date.split('/')]
-        h = int(time[:2])
-        m = int(time[2:4])
-        s = int(time[4:6])
-        return datetime(year, month, day, h, m, s)
+    # def get_date_captured(self) -> datetime:
+    #     date, time = self.image_data['ShotDate']
+    #     year, month, day = [int(x) for x in date.split('/')]
+    #     h = int(time[:2])
+    #     m = int(time[2:4])
+    #     s = int(time[4:6])
+    #     return datetime(year, month, day, h, m, s)
 
     def _get_tiles(self) -> List[Tile]:
         im_h, im_w = self.image.height, self.image.width

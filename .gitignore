@@ -9,8 +9,9 @@
 # Output
 /outputs
 
-# Random files
+# Div
 /trash
-/citygml-tools-1.4.5
+/citygml-tools*
+/dataset
 
 **/Skrafoto.egg-info
