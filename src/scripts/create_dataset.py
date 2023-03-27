@@ -56,8 +56,8 @@ def create_dataset(config):
             #     old_snapshot = new_snapshot     
 
 
-if __name__ == '__main__':
-    create_dataset()
+# if __name__ == '__main__':
+#     create_dataset()
 
         # exit()
         # t = default_timer()

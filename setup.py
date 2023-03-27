@@ -16,14 +16,15 @@ setup(
         'pycocotools',
         'dbfread',
         'utm',
-        'shapefile'
+        'pyshp',
     ],
     packages=find_packages(where='src', ),
     package_dir = {"": "src"},
     entry_points={
         'console_scripts': [
             'semantic-segmentation = scripts:semantic_segmentation',
-            'create-dataset = scripts:create_dataset'
+            'create-dataset = scripts:create_dataset',
+            'predict = scripts:predict'
         ],
     },
 )

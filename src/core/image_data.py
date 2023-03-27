@@ -98,8 +98,8 @@ class ImageData():
             seamline = list(read_sos(path).values())[1:-1]
             image_data = seamline[::2]
             image_extents = seamline[1::2]
-            for data, extent in zip(image_data, image_extents):
-                image_name = data['ImageName']
+            for rec, extent in zip(image_data, image_extents):
+                image_name = rec['ImageName']
                 if image_name in available_images:
                     cam = get_camera(cameras, image_name)
                     if cam is None: continue
@@ -107,12 +107,12 @@ class ImageData():
                     data.append(ImageDataRecord(
                         image_name=image_name,
                         image_path=image_path,
-                        x=float(data['CameraX']),
-                        y=float(data['CameraY']),
-                        height=float(data['Alt']),
-                        omega=float(data['Omega']),
-                        phi=float(data['Phi']),
-                        kappa=float(data['Kappa']),
+                        x=float(rec['CameraX']),
+                        y=float(rec['CameraY']),
+                        height=float(rec['Alt']),
+                        omega=float(rec['Omega']),
+                        phi=float(rec['Phi']),
+                        kappa=float(rec['Kappa']),
                         cam=cam,
                         bbox=get_image_bbox(extent)
                     ))
@@ -154,11 +154,11 @@ class ImageData():
             
         return cls(data)
 
-if __name__ == '__main__':
-    data = ImageData.from_sos('data/Somlinjefiler/cam4B.sos', 'data/Somlinjefiler/cam5R.sos')
-    image_paths = os.listdir('/media/sigmundmestad/aa7e1253-187b-48d4-af32-eb9f050db5dd/sigmunom/data')
-    data_paths = ['/media/sigmundmestad/aa7e1253-187b-48d4-af32-eb9f050db5dd/sigmunom/Dekningsoversikt/TT-30243_Vertikal-Skrå.dbf']
-    # data = ImageData.from_dbf(image_paths, data_paths)
+# if __name__ == '__main__':
+    # data = ImageData.from_sos('data/Somlinjefiler/cam4B.sos', 'data/Somlinjefiler/cam5R.sos')
+    # image_paths = os.listdir('/media/sigmundmestad/aa7e1253-187b-48d4-af32-eb9f050db5dd/sigmunom/data')
+    # data_paths = ['/media/sigmundmestad/aa7e1253-187b-48d4-af32-eb9f050db5dd/sigmunom/Dekningsoversikt/TT-30243_Vertikal-Skrå.dbf']
+    # # data = ImageData.from_dbf(image_paths, data_paths)
 
-    print(data._records)
-    print(data['30243_001_00905_220415_Cam0N'])
+    # print(data._records)
+    # print(data['30243_001_00905_220415_Cam0N'])

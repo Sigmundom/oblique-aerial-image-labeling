@@ -1,6 +1,7 @@
 **/__pycache__
 /__pycache__
 /.vscode
+**/Skrafoto.egg-info
 
 # Input
 /images
@@ -8,10 +9,11 @@
 
 # Output
 /outputs
+/test
 
 # Div
 /trash
 /citygml-tools*
 /dataset
 
-**/Skrafoto.egg-info
+test.py
