@@ -1,5 +1,6 @@
 
 import json
+from timeit import default_timer
 from PIL import Image
 import numpy as np
 from shapely.strtree import STRtree
@@ -16,7 +17,7 @@ threshold_building_part_size = 1000
 class AnnotatedTiledImage(TiledImage):
     def __init__(
         self,
-        buildings: list[Building],
+        buildings: np.ndarray,
         *args,
         tile_id_start=0,
         annotation_id_start=0,
@@ -31,17 +32,15 @@ class AnnotatedTiledImage(TiledImage):
         }
         for building in buildings:
             building.transform_to_image_coordinates(self.wc_to_ic)
-
         search_tree = STRtree([b.bbox_ic for b in buildings])
-        buildings = np.array(buildings)
         self.tiles = [AnnotatedTile(tile, list(buildings.take(search_tree.query(tile.bbox)))) for tile in self]
 
     def export_semantic_segmentation(self, annotation_format, label_walls):
         self.save_image_data()
-        ensure_folder_exists(f'{self.output_folder}/images')
+        ensure_folder_exists(f'{self.output_folder}/img')
 
         if annotation_format == 'mask':
-            ensure_folder_exists(f'{self.output_folder}/labels') 
+            ensure_folder_exists(f'{self.output_folder}/label') 
             for tile in self:
                 if len(tile.buildings) == 0: continue
                 tile.export_tile_with_label(label_walls)

@@ -9,7 +9,7 @@ from .tile import Tile
 
 class AnnotatedTile(Tile):  
     def __init__(self, tile:Tile, buildings:list[Building]):
-        super().__init__(tile.parent, tile.crop_box, tile.bbox)
+        super().__init__(tile.parent, tile.tile_image, tile.crop_box, tile.bbox)
         self.buildings = buildings
 
     def get_all_surfaces_of_type(self, surface_type:SurfaceType):
@@ -60,8 +60,8 @@ class AnnotatedTile(Tile):
 
 
     def export_tile_with_label(self, label_walls):
-        """Exports the tile as jpg in '/images' and label as png in /labels"""
+        """Exports the tile as jpg in '/img' and label as png in /label"""
         mask = self._create_mask(label_walls)
         if mask.sum() / math.prod(self.parent.tile_size) > .05:
             self.save()
-            plt.imsave(f'{self.parent.output_folder}/labels/{repr(self)}.png', mask, cmap=cm.gray)
+            plt.imsave(f'{self.parent.output_folder}/label/{repr(self)}.png', mask, cmap=cm.gray)

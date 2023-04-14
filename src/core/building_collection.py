@@ -52,9 +52,9 @@ class WCBuildingCollection():
             self._buildings = np.array(buildings)
         return self._buildings, self._STRtree
 
-    def get_buildings_in_area(self, area: sg.Polygon):
+    def get_buildings_in_area(self, area: sg.Polygon) -> np.ndarray:
         buildings, STRtree = self._get_buildings_and_STRtree()
-        return list(buildings.take(STRtree.query(area)))
+        return buildings.take(STRtree.query(area))
 
 
 if __name__ == '__main__':

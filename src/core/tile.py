@@ -1,5 +1,6 @@
 import shapely.geometry as sg
 from shapely.affinity import affine_transform
+from PIL import Image
 
 from typing import TYPE_CHECKING
 
@@ -8,17 +9,15 @@ if TYPE_CHECKING:
 
 
 class Tile():
-    def __init__(self, parent: "TiledImage", crop_box: tuple[int, int, int, int], bbox: sg.Polygon):
+    def __init__(self, parent: "TiledImage", tile_image: Image, crop_box: tuple[int, int, int, int], bbox: sg.Polygon):
         self.parent = parent
         self.crop_box = crop_box # Pixel coordinates (left, upper, right, lower)
+        self.tile_image = tile_image
         self.bbox = bbox # Image coordinates
 
     def __repr__(self):
         return f'{self.parent.image_name}_{"_".join(str(x) for x in self.crop_box)}'
 
-    @property
-    def tile_image(self):
-        return self.parent.image.crop(self.crop_box)
 
     @property
     def bounds(self):
@@ -36,4 +35,5 @@ class Tile():
 
 
     def save(self) -> None:
-        self.tile_image.save(f'{self.parent.output_folder}/images/{repr(self)}.jpg')
+        self.tile_image.save(f'{self.parent.output_folder}/img/{repr(self)}.jpg')
+        self.tile_image.close()

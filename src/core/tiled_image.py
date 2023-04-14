@@ -16,7 +16,6 @@ class TiledImage:
             output_folder='outputs'
             ):
         self.image_data = image_data
-        self.image = Image.open(image_data.path)
         self.wc_to_ic = image_data.wc_to_ic
         self.image_name = image_data.name
         if isinstance(tile_size, int):
@@ -33,8 +32,6 @@ class TiledImage:
     def __getitem__(self, index):
         return self.tiles[index]
     
-    def __del__(self):
-        self.image.close()
         
 
     # def save_tile_map(self) -> None:
@@ -76,23 +73,25 @@ class TiledImage:
     #     return datetime(year, month, day, h, m, s)
 
     def _get_tiles(self) -> List[Tile]:
-        im_h, im_w = self.image.height, self.image.width
-        tile_h, tile_w = self.tile_size
-        num_tiles = (ceil(im_h / (tile_h-self.tile_overlap)), ceil(im_w / (tile_w-self.tile_overlap)))
+        with Image.open(self.image_data.path) as image: 
+            im_h, im_w = image.height, image.width
+            tile_h, tile_w = self.tile_size
+            num_tiles = (ceil(im_h / (tile_h-self.tile_overlap)), ceil(im_w / (tile_w-self.tile_overlap)))
         
-        step = (ceil((im_h-tile_h) / num_tiles[0]), ceil((im_w-tile_w) / num_tiles[1]))
+            step = (ceil((im_h-tile_h) / num_tiles[0]), ceil((im_w-tile_w) / num_tiles[1]))
 
-        tiles = []
+            tiles = []
 
-        for tile_row in range(num_tiles[0]+1):
-            i = im_h-tile_row*step[0] if tile_row < num_tiles[0] else tile_h
-            y = -i + im_h//2 
-            for tile_col in range(num_tiles[1]+1):
-                j = tile_col*step[1] if tile_col < num_tiles[1] else im_w-tile_w
-                x = j-im_w//2
-                crop_box = (j, i-tile_h, j+tile_w, i) # region in pixel coordinates for PIL.crop
-                bbox = sg.box(x, y, x+tile_w, y+tile_h) # Bbox in image coordinates
-                tiles.append(Tile(self, crop_box, bbox))
+            for tile_row in range(num_tiles[0]+1):
+                i = im_h-tile_row*step[0] if tile_row < num_tiles[0] else tile_h
+                y = -i + im_h//2 
+                for tile_col in range(num_tiles[1]+1):
+                    j = tile_col*step[1] if tile_col < num_tiles[1] else im_w-tile_w
+                    x = j-im_w//2
+                    crop_box = (j, i-tile_h, j+tile_w, i) # region in pixel coordinates for PIL.crop
+                    tile_image = image.crop(crop_box)
+                    bbox = sg.box(x, y, x+tile_w, y+tile_h) # Bbox in image coordinates
+                    tiles.append(Tile(self, tile_image, crop_box, bbox))
 
         return tiles
 

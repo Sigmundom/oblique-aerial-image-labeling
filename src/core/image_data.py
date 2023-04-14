@@ -42,8 +42,11 @@ class ImageDataRecord():
         self.kappa = kappa
         self.cam = cam
         self.wc_to_ic = cam.get_wc_to_ic_transformer(x, y, height, omega, phi, kappa)
-        # self.ic_to_wc = cam.get_ic_to_wc_transformer(x, y, height, omega, phi, kappa)
         self.bbox: Polygon = bbox
+
+    @property
+    def ic_to_wc(self):
+        return self.cam.get_ic_to_wc_transformer(self.x, self.y, self.height, self.omega, self.phi, self.kappa)
                         
                  
     def is_image_in_area(self, area: Polygon) -> bool:
@@ -77,7 +80,7 @@ class ImageDataRecord():
             }, f)
 
 
-class ImageData():
+class ImageDataList():
     def __init__(self, data: list[ImageDataRecord]):
         self._data = data
 
@@ -133,7 +136,7 @@ class ImageData():
                 if rec['imageid'] in available_images:
                     cam = get_camera(cameras, image_name)
                     if cam is None: continue
-                    if not cam.cam_id == 'cam6L': continue
+                    # if not cam.cam_id == 'cam6L': continue
 
                     image_path = next(filter(lambda path: image_name in path, image_paths), None)
                     shapeRec = sf.shapeRecord(rec.oid)

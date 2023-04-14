@@ -10,9 +10,6 @@ from utils import SurfaceType
 
 colors = ['blue', 'green', 'red', 'yellow']
 
-def remove_indices(original_list: list, indices:list):
-    return [ele for idx, ele in enumerate(original_list) if idx not in indices]
-
 
 class Building():
     def __init__(self, surface_types: list[SurfaceType], surfaces_wc: list[np.ndarray]):
