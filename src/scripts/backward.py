@@ -1,17 +1,21 @@
 import json
 import os
 import re
+from timeit import default_timer
 from matplotlib import pyplot as plt
 import numpy as np
 from shapely.geometry import box
 from core.image_data import ImageDataList
 from utils import get_laser_data
 from PIL import Image
-from scipy.ndimage import median_filter
+from scipy.ndimage import median_filter, gaussian_filter
 from scipy.interpolate import LinearNDInterpolator
 
 from utils.camera import Camera
 import rasterio
+from rasterio.transform import xy, rowcol
+
+from utils.convolution import smooth
 
 
 def interpolate_heights(points, width, height):
@@ -60,59 +64,91 @@ def backward(config, masks_dir, aoi):
     
     laser_data = get_laser_data(aoi)
     z_values = laser_data.read(1)
-    xyz = np.zeros((512, 512, 3))
-    xyz[:,:,2] = z_values
-    for r in range(512):
-        for c in range(512):
-            xyz[r, c, :2] = laser_data.xy(r,c)
+    h = z_values / z_values.max()
+    h = h * 255
+    h = h.astype(np.uint8)
+    plt.imsave('outputs/test/heights.png', h)
+    
 
-    xyz_list = xyz.reshape((512*512,3))
+
+    rows = np.arange(512).repeat(512)
+    cols = np.resize(np.arange(512), 512*512)
+    x, y = xy(laser_data.transform, rows, cols)
+    xyz = np.array([x, y, z_values.flatten()]).T
+
     result = np.zeros((512, 512))
+    count = np.zeros((512,512), dtype=np.uint8)
     profile = laser_data.profile
     profile['dtype'] = rasterio.uint8
-    output = rasterio.open("predictions_combined2/output.tif", "w", **profile)
+    output = rasterio.open("outputs/test/output.tif", "w", **profile)
+
+    # [minx, maxy, maxx, miny]
 
     for im_data in image_data_list:
         mask_dict = masks[im_data.name]
-        laser_data_ic = im_data.wc_to_ic(xyz_list)
-        mask_bbox = mask_dict['bbox']
-        mask_w = round(mask_bbox[2]-mask_bbox[0])
-        mask_h = round(mask_bbox[1]-mask_bbox[3])
+        laser_data_ic = im_data.wc_to_ic(xyz)
+        minx, miny, maxx, maxy = mask_dict['bbox']
+        mask_w = round(maxx-minx)
+        mask_h = round(maxy-miny)
         laser_data_tc = np.zeros((512*512, 3), dtype=np.float32)
-        laser_data_tc[:,0] = mask_bbox[1] - laser_data_ic[:,1] 
-        laser_data_tc[:,1] = laser_data_ic[:,0] - mask_bbox[0]
-        laser_data_tc[:,2] = xyz_list[:,2]
+        laser_data_tc[:,0] = maxy - laser_data_ic[:,1] 
+        laser_data_tc[:,1] = laser_data_ic[:,0] - minx
+        laser_data_tc[:,2] = xyz[:,2]
 
         z_grid = interpolate_heights(laser_data_tc, mask_w, mask_h)
         plt.imsave(f'test/z_grids_median/{im_data.name}.png', z_grid)
 
         mask = np.array(Image.open(mask_dict['path']).resize((mask_w, mask_h)))
         mask = mask / mask.max()
-        indices = np.where(mask > 0.1)
-        x = indices[1] + mask_bbox[0]
-        y = mask_bbox[1] - indices[0]
+        indices = np.where(mask < 2)
+        x = indices[1] + minx
+        y = maxy - indices[0]
         Z = z_grid[indices]
 
         lng, lat = im_data.ic_to_wc(x, y, Z) 
-
-        for x, y, score in zip(lng, lat, mask[indices]):
-            r, c = output.index(x, y)
+        rows, cols = rowcol(output.transform, lng, lat)
+        for r, c, score in zip(rows, cols, mask[indices]):
             if r < 0 or r > 511 or c < 0 or c > 511:
                 continue
             else:
-                result[r-2:r+2,c-2:c+2] += score**2
+                result[r,c] += score
+                count[r,c] += 1
 
-    result = result / result.max()
-    result_255 = result * 255
+    plt.imsave('outputs/test/count.png', count)
+    count_0 = (count == 0).astype(np.uint8) * 255
+    plt.imsave('outputs/test/count_0.png', count_0)
+
+    result_1 = result / result.max()
+    result_255 = result_1 * 255
     result_255 = result_255.astype(np.uint8)
     output.write(result_255, 1)
-    plt.imsave('predictions_combined2/output.png', result_255)
-    for thresh in [0.05, 0.06, 0.07, 0.08, 0.09, 0.1, 0.2, 0.3, 0.4, 0.5]:
-        save(result, thresh)
+    plt.imsave('outputs/test/output.png', result_255)
+
+    # count += 1
+    result_scaled = result/(count+1)
+    result_scaled = result_scaled / result_scaled.max()
+    result_scaled_255 = (result_scaled * 255).astype(np.uint8)
+    plt.imsave('outputs/test/output_scaled.png', result_scaled_255)
+
+    # weights = count.astype(np.float64) / count.sum()
+    # result_smooth = gaussian_filter(result, radius=3)
+
+    smoothed = smooth(result_scaled, count)
+    # Print the smoothed raster
+    # smoothed = smoothed_sum / smoothed_sum.max()
+    # plt.imsave('outputs/test/smooth.png', (smoothed*255).astype(np.uint8))
+    im = Image.fromarray((smoothed*255).astype(np.uint8))
+    im.save('outputs/test/smooth.png')
+    
+    print(smoothed.max())
+    for thresh in [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,1, 1.1]:
+        save(smoothed, thresh)
 
 
 def save(result, thresh):
-    plt.imsave(f'predictions_combined2/output_{thresh}.png', (result>=thresh).astype(np.uint8)*255)
+    im = Image.fromarray((result>=thresh).astype(np.uint8)*255)
+    im.save(f'outputs/test/output_smooth_{thresh}.png')
+    # plt.imsave(f'outputs/test/output_smooth_{thresh}.png', (result>=thresh).astype(np.uint8)*255)
 
 
 if __name__ == '__main__':

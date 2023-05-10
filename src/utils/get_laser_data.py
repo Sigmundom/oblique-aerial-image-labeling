@@ -6,7 +6,8 @@ import requests
 from shapely.geometry import Polygon, box
 
 url = "https://wcs.geonorge.no/skwms1/wcs.hoyde-dom-nhm-25832"
-coverage =  'dom_25832'
+# coverage =  'dom_25832'
+coverage = 'nhm_dom_topo_25832'
 srid = 25832
 
 
@@ -15,8 +16,11 @@ tile_size = 512
 
 img_format = "GeoTiff"
 def get_laser_data(area: Polygon) -> DatasetReader:
-    if os.path.exists('aoi.tiff'):
-        return rasterio.open('aoi.tiff')
+    file_name = f'cache/laser_data/heights_{"_".join((format(x, ".2f") for x in area.centroid.coords[0]))}.tiff'
+    # if os.path.exists(file_name):
+    #     return rasterio.open(file_name)
+    if False:
+        pass
     else:
         bounds = area.bounds
         params = {
@@ -28,12 +32,12 @@ def get_laser_data(area: Polygon) -> DatasetReader:
             'width': tile_size,
             'height': tile_size,
             'crs': f'EPSG:{srid}',
-            'bbox': ', '.join((str(x) for x in bounds))
+            'bbox': ', '.join((format(x, ".2f") for x in bounds))
         }
         response = requests.get(url, params=params, stream=True,
                             headers=None, timeout=None)
         if response.status_code == 200:
-            with open('aoi.tiff', 'wb') as f:
+            with open(file_name, 'wb') as f:
                 f.write(response.content)
                 print('File saved successfully.')
             return rasterio.open(io.BytesIO(response.content))

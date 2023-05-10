@@ -15,5 +15,6 @@
 /trash
 /citygml-tools*
 /dataset
+/cache
 
 test.py
