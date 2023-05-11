@@ -1,3 +1,3 @@
 from .semantic_segmentation import semantic_segmentation
 from .create_dataset import create_dataset
-from .forward import forward
+from .prepare_area_tiles import prepare_area_tiles

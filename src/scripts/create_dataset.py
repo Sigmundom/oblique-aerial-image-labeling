@@ -7,6 +7,7 @@ from tqdm import tqdm
 from core import AnnotatedTiledImage, WCBuildingCollection, ImageDataList
 from utils import Camera
 from PIL import Image
+from shapely.geometry import shape
 
 Image.MAX_IMAGE_PIXELS = 287944704
 
@@ -34,11 +35,14 @@ def create_dataset(config):
         buildings = WCBuildingCollection(area['cityjson'], area['municipality'])
         area_outline = buildings.outline
         print('Complete')
+        
+        exclude_area = area['exclude'] if "exclude" in area else None
+        include_area = area['include'] if 'include' in area else None
         i = 0
         for image in tqdm(image_data):
             if  image.is_image_in_area(area_outline):
                 buildings_in_image = buildings.get_buildings_in_area(image.bbox)
-                tiled_image = AnnotatedTiledImage(buildings_in_image, image, output_folder=config['output_folder'], tile_size=config['tile_size'])
+                tiled_image = AnnotatedTiledImage(buildings_in_image, image, output_folder=config['output_folder'], tile_size=config['tile_size'], exclude_area=exclude_area, include_area=include_area)
                 annotation_format = config['annotation_format']
                 label_walls = config['label_walls']
                 tiled_image.export_semantic_segmentation(annotation_format, label_walls)

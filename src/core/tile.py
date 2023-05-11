@@ -16,7 +16,7 @@ class Tile():
         self.bbox = bbox # Image coordinates
 
     def __repr__(self):
-        return f'{self.parent.image_name}_{"_".join(str(x) for x in self.crop_box)}'
+        return f'{self.parent.image_data.name}_{"_".join(str(x) for x in self.crop_box)}'
 
 
     @property

@@ -1,0 +1,62 @@
+{
+    "tile_size": 512,
+    "output_folder": "dataset/lindesnes_nadir",
+    "label_walls": false,
+    "annotation_format": "mask",
+    "areas": [
+        {   
+            "municipality": {
+                "name": "Lindesnes",
+                "number": 4205
+            },
+            "cityjson": "data/cityjson/3DBYGG_BASISDATA_4205_LINDESNES_5972_FKB-BYGNING_SOSI_CityGML_reprojected.json",
+            "exclude": {
+                "type": "Polygon",
+                "coordinates": [
+                  [
+                    [
+                      412940.28756845824,
+                      6452011.80591097
+                    ],
+                    [
+                      412947.64909195655,
+                      6452346.768161283
+                    ],
+                    [
+                      413210.5612016448,
+                      6452340.998732395
+                    ],
+                    [
+                      413203.22191662807,
+                      6452006.036181933
+                    ],
+                    [
+                      412940.28756845824,
+                      6452011.80591097
+                    ]
+                  ]
+                ]
+              }
+        }
+    ],
+    "images": [
+        "/media/sigmundmestad/aa7e1253-187b-48d4-af32-eb9f050db5dd/sigmunom/data"
+    ],
+    "image_data_format": "shp",
+    "image_data": [
+        "/media/sigmundmestad/aa7e1253-187b-48d4-af32-eb9f050db5dd/sigmunom/Dekningsoversikt/TT-30243_Vertikal-Skrå"           
+    ],
+    "cameras": [
+        {
+            "cam_id": "cam0N",
+            "f": 79.6,
+            "PPx": 0,
+            "PPy": 0,
+            "width_mm": 77.245,
+            "height_mm": 52.7,
+            "width_px": 20544,
+            "height_px": 14016
+        }
+    ]
+
+}

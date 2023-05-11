@@ -11,21 +11,22 @@ from utils.utils import ensure_folder_exists
 
 Image.MAX_IMAGE_PIXELS = 287944704
 
-def expand2square(pil_img, size=512, background_color=(0,0,0)):
-    width, height = pil_img.size
-    if width == height == size:
-        return pil_img
-    else:
-        result = Image.new(pil_img.mode, (size, size), background_color)
-        result.paste(pil_img, ((size - width) // 2, (size - height) // 2))
-        return result
+# def expand2square(pil_img, size=512, background_color=(0,0,0)):
+#     width, height = pil_img.size
+#     if width == height == size:
+#         return pil_img
+#     else:
+#         result = Image.new(pil_img.mode, (size, size), background_color)
+#         result.paste(pil_img, ((size - width) // 2, (size - height) // 2))
+#         return result
+
+
 
 
 
 # @click.command()
 # @click.option('-c', '--config', default='data/config/lindesnes.json')
-def forward(config: str, aoi: Polygon):
-    ensure_folder_exists('test')
+def prepare_area_tiles(config: str, test_area, tile_size):
     with open(config, encoding='utf8') as f:
         config = json.load(f)
 
@@ -41,6 +42,8 @@ def forward(config: str, aoi: Polygon):
         image_data = ImageDataList.from_shp(image_paths, image_data_paths, cameras)
     else:
         raise ValueError(f'"{image_data_format}" is not a valid format. Must be "sos" or "shp"')
+    
+    # prepare for each tile...
     
     images:list[ImageDataRecord] = list(filter(lambda im: aoi.intersects(im.bbox), image_data))
 
@@ -95,10 +98,20 @@ if __name__ == '__main__':
     # d = 25
     # aoi = box(x-d, y-d, x+d, y+d)
     # forward(config, aoi)
+    # x = 413111.13
+    # y = 6452289.41
+    # d = 25
 
     config = 'data/config/lindesnes_nadir.json'
-    x = 413111.13
-    y = 6452289.41
-    d = 25
-    aoi = box(x-d, y-d, x+d, y+d)
-    forward(config, aoi)
+    # test_area = [
+    #   [412950, 6452000], [412950, 6452350], [413200, 6452350], [413200, 6452000], [412950, 6452000]
+    # ]
+    test_area = {
+        'minx': 412950,
+        'maxx': 413200,
+        'miny': 6452000,
+        'maxy': 6452350
+    }
+    tile_size = 50 # analyze 50x50 meter at the time
+    # aoi = box(x-d, y-d, x+d, y+d)
+    prepare_area_tiles(config, test_area, tile_size)

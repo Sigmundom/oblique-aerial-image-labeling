@@ -82,8 +82,6 @@ def backward(config, masks_dir, aoi):
     profile['dtype'] = rasterio.uint8
     output = rasterio.open("outputs/test/output.tif", "w", **profile)
 
-    # [minx, maxy, maxx, miny]
-
     for im_data in image_data_list:
         mask_dict = masks[im_data.name]
         laser_data_ic = im_data.wc_to_ic(xyz)
