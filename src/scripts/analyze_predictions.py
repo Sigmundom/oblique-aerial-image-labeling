@@ -2,10 +2,12 @@ import json
 import os
 import re
 from timeit import default_timer
+import click
 from matplotlib import pyplot as plt
 import numpy as np
 from shapely.geometry import box
-from core.image_data import ImageDataList
+from core.image_data import ImageDataList, ImageDataRecord
+from scripts.prepare_analysis import TILE_SIZE
 from utils import get_heights_tiff
 from PIL import Image
 from scipy.ndimage import median_filter, gaussian_filter
@@ -16,6 +18,12 @@ import rasterio
 from rasterio.transform import xy, rowcol
 
 from utils.convolution import smooth
+
+
+def save(result, thresh):
+    im = Image.fromarray((result>=thresh).astype(np.uint8)*255)
+    im.save(f'outputs/test/output_smooth_{thresh}.png')
+    # plt.imsave(f'outputs/test/output_smooth_{thresh}.png', (result>=thresh).astype(np.uint8)*255)
 
 
 def interpolate_heights(points, width, height):
@@ -36,49 +44,41 @@ def interpolate_heights(points, width, height):
 
     return z_grid
 
-def backward(config, masks_dir, aoi):
-    with open(config, encoding='utf8') as f:
-        config = json.load(f)
 
-    cameras = {camera_info['cam_id'].lower(): Camera(camera_info) for camera_info in config['cameras']}
-    image_folder = config['images'][0]
-    image_data_paths = config['image_data']
-    masks = {}
-    for file_name in os.listdir(masks_dir):
-        split_i = re.search('Cam\d[A-Z]', file_name).end()
-        image_name=  file_name[:split_i]
-        masks[image_name] = {
-            'bbox': [float(x) for x in file_name[split_i+1:-8].split('_')],
-            'path': os.path.join(masks_dir, file_name)
-        }
-
-    image_paths = [os.path.join(image_folder, f'{im_name}.jpg') for im_name in masks.keys()]
-
-    image_data_format = config['image_data_format']
-    if image_data_format == 'sos':
-        image_data_list = ImageDataList.from_sos(image_paths, image_data_paths, cameras)
-    elif image_data_format == 'dbf':
-        image_data_list = ImageDataList.from_shp(image_paths, image_data_paths, cameras)
-    else:
-        raise ValueError(f'"{image_data_format}" is not a valid format. Must be "sos" or "dbf"')
+def analyze_tile(tile_folder: str, image_data: list[ImageDataRecord]):
+    masks = [Image.open(mask) for mask in os.listdir(os.path.join(tile_folder, 'masks'))]
     
-    laser_data = get_heights_tiff(aoi)
-    z_values = laser_data.read(1)
-    h = z_values / z_values.max()
-    h = h * 255
-    h = h.astype(np.uint8)
-    plt.imsave('outputs/test/heights.png', h)
-    
+    # Check if any of the masks has detected buildings ()
 
+    x, y = (int(s) for s in tile_folder.split('_'))
+
+    aoi = box(x, y, x+TILE_SIZE, y+TILE_SIZE)
+    heights_tiff = get_heights_tiff(aoi)
+    
+    # masks = {}
+    # for file_name in os.listdir(masks_dir):
+    #     split_i = re.search('Cam\d[A-Z]', file_name).end()
+    #     image_name=  file_name[:split_i]
+    #     masks[image_name] = {
+    #         'bbox': [float(x) for x in file_name[split_i+1:-8].split('_')],
+    #         'path': os.path.join(masks_dir, file_name)
+    #     }
+    
+    heights = heights_tiff.read(1)
+
+    # Save image of heights just because
+    h = ((heights / heights.max()) * 255).astype(np.uint8)
+    plt.imsave(os.path.join(tile_folder, 'heights.png'), h)
+    
 
     rows = np.arange(512).repeat(512)
     cols = np.resize(np.arange(512), 512*512)
-    x, y = xy(laser_data.transform, rows, cols)
-    xyz = np.array([x, y, z_values.flatten()]).T
+    x, y = xy(heights_tiff.transform, rows, cols)
+    xyz = np.array([x, y, heights.flatten()]).T
 
     result = np.zeros((512, 512))
     count = np.zeros((512,512), dtype=np.uint8)
-    profile = laser_data.profile
+    profile = heights_tiff.profile
     profile['dtype'] = rasterio.uint8
     output = rasterio.open("outputs/test/output.tif", "w", **profile)
 
@@ -143,17 +143,44 @@ def backward(config, masks_dir, aoi):
         save(smoothed, thresh)
 
 
-def save(result, thresh):
-    im = Image.fromarray((result>=thresh).astype(np.uint8)*255)
-    im.save(f'outputs/test/output_smooth_{thresh}.png')
-    # plt.imsave(f'outputs/test/output_smooth_{thresh}.png', (result>=thresh).astype(np.uint8)*255)
+
+@click.command()
+def analyze_predictions(config, masks_dir, aoi):
+    #### Parameters ####
+    config = 'config/lindesnes.json'
+    analysis_folder = 'analysis/test'
+    ###################
+
+    with open(config, encoding='utf8') as f:
+        config = json.load(f)
+
+    cameras = {camera_info['cam_id'].lower(): Camera(camera_info) for camera_info in config['cameras']}
+
+    # Find path to all images used in analysis
+    image_folder = config['images'][0]
+    regex = r'Cam[04567][BNRFL]'
+    image_paths = [os.path.join(image_folder, file[:re.search(regex, file).end()]) for _, _, files in os.walk(analysis_folder) for file in files]
+    
+    image_data_paths = config['image_data']
+    image_data_format = config['image_data_format']
+    if image_data_format == 'sos':
+        image_data = ImageDataList.from_sos(image_paths, image_data_paths, cameras)
+    elif image_data_format == 'shp':
+        image_data = ImageDataList.from_shp(image_paths, image_data_paths, cameras)
+    else:
+        raise ValueError(f'"{image_data_format}" is not a valid format. Must be "sos" or "shp"')
+
+    
+    for tile_folder in os.listdir(analysis_folder):
+        
+        analyze_tile(tile_folder, image_data)
+
 
 
 if __name__ == '__main__':
-    config = 'data/config/grimstad_new.json'
-    masks_dir = 'test/masks'
-    x = 476155.42
-    y = 6465926.15
-    d = 25
-    aoi = box(x-d, y-d, x+d, y+d)
-    backward(config, masks_dir, aoi)
+    # masks_dir = 'test/masks'
+    # x = 476155.42
+    # y = 6465926.15
+    # d = 25
+    # aoi = box(x-d, y-d, x+d, y+d)
+    analyze_predictions()

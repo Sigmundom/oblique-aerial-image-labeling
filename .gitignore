@@ -10,6 +10,7 @@
 # Output
 /outputs
 /test*
+/analysis
 
 # Div
 /trash

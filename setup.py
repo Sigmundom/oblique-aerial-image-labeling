@@ -24,7 +24,8 @@ setup(
         'console_scripts': [
             'semantic-segmentation = scripts:semantic_segmentation',
             'create-dataset = scripts:create_dataset',
-            'predict = scripts:predict'
+            'prepare_analysis = scripts:prepare_analysis',
+            'analyze_predictions = scripts:analyze_predictions'
         ],
     },
 )

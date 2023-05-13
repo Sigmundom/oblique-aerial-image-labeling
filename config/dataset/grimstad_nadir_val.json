@@ -1,0 +1,62 @@
+{
+    "tile_size": 512,
+    "output_folder": "dataset/grimstad_nadir_val",
+    "label_walls": false,
+    "annotation_format": "mask",
+    "areas": [
+        {   
+            "municipality": {
+                "name": "Grimstad",
+                "number": 4202
+            },
+            "cityjson": "data/cityjson/3DBYGG_BASISDATA_4202_GRIMSTAD_5972_FKB-BYGNING_SOSI_CityGML_reprojected.json",
+            "include": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    475762,
+                    6465696
+                  ],
+                  [
+                    475764,
+                    6466022
+                  ],
+                  [
+                    476193,
+                    6466020
+                  ],
+                  [
+                    476191,
+                    6465693
+                  ],
+                  [
+                    475762,
+                    6465696
+                  ]
+                ]
+              ]
+            }
+        }
+    ],
+    "images": [
+        "data/images/Vertikalbilder"
+    ],
+    "image_data_format": "sos",
+    "image_data": [
+        "data/Somlinjefiler/cam0N.sos"         
+    ],
+    "cameras": [
+        {
+            "cam_id": "cam0N",
+            "f": 82,
+            "PPx": 0,
+            "PPy": 0,
+            "width_mm": 70.044,
+            "height_mm": 45.084,
+            "width_px": 13470,
+            "height_px": 8670
+        }
+    ]
+
+}

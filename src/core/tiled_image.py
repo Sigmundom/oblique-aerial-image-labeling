@@ -9,17 +9,10 @@ from PIL import Image
 from core.image_data import ImageDataRecord
 from utils import get_image_data, ensure_folder_exists
 from core.tile import Tile
+from utils.get_terrain_heights import get_terrain_heights
 
-url = 'https://ws.geonorge.no/hoydedata/v1/datakilder/dtm1/punkt'
 
-def find_heights(coordinates):
-    params = {
-            'datakilde': 'dtm1',
-            'koordsys': 25832,
-            'punkter': json.dumps(coordinates)
-        }
-    response = requests.get(url, params=params, headers=None, timeout=None)
-    return np.array([[p['x'], p['y'], p['z']] for p in json.loads(response.content)['punkter']])
+
 
 class TiledImage:
     def __init__(
@@ -34,14 +27,9 @@ class TiledImage:
         self.image_data = image_data
         self.wc_to_ic = image_data.wc_to_ic
 
-        dx = image_data.cam.width_px // 2
-        dy = image_data.cam.height_px // 2
-        image_polygon = sg.box(-dx, -dy, dx, dy)
-        self.exclude_area_polygon = self._get_area_polygon(exclude_area, image_polygon)
-        self.include_area_polygon = self._get_area_polygon(include_area, image_polygon)
+        self.exclude_area_polygon = self._get_area_polygon(exclude_area)
+        self.include_area_polygon = self._get_area_polygon(include_area)
 
-        if self.exclude_area_polygon is not None:
-            print('IMAGE:', self.image_data.name, self.exclude_area_polygon)
         if isinstance(tile_size, int):
             self.tile_size = (tile_size, tile_size)
         else:
@@ -59,26 +47,39 @@ class TiledImage:
     def __getitem__(self, index):
         return self.tiles[index]
     
-    def _get_area_polygon(self, area, image_polygon):
-        if area is None: return None
-        if area['type'] != 'Polygon':
-            raise NotImplementedError('Only supports geojson polygon')
-        if len(area['coordinates']) > 1:
-            raise NotImplementedError('only supports simple Polygons')
+    def _get_area_polygon(self, areas):
+        if areas is None: return None
         
-        coordinates_wc = area['coordinates'][0]
-        coordinates_wc_with_heights = find_heights(coordinates_wc)
-        polygon_ic = sg.Polygon(self.wc_to_ic(coordinates_wc_with_heights))
-        if not polygon_ic.is_valid:
-            polygon_ic = polygon_ic.buffer(0.0)
-            if not polygon_ic.is_valid:
-                print('INVALID POLYGON:', polygon_ic)
-                return None
+        def get_polygon(area):
+            if area['type'] != 'Polygon':
+                raise NotImplementedError('Only supports geojson polygon')
+            if len(area['coordinates']) > 1:
+                raise NotImplementedError('only supports simple Polygons')
+            
+            coordinates_wc = np.array(area['coordinates'][0])
+            assert coordinates_wc.shape[1] == 3
+            
+            polygon = sg.Polygon(self.wc_to_ic(coordinates_wc))
+            if not polygon.is_valid:
+                polygon = polygon.buffer(0.0)
+                if not polygon.is_valid:
+                    print('INVALID POLYGON:', polygon)
+                    return sg.Polygon()
+            return polygon
+                
+        if isinstance(areas, list):
+            area_polygon = sg.MultiPolygon((get_polygon(area) for area in areas))
+        else:
+            area_polygon = get_polygon(areas)
 
-        if not polygon_ic.intersects(image_polygon):
+        dx = self.image_data.cam.width_px // 2
+        dy = self.image_data.cam.height_px // 2
+        image_polygon = sg.box(-dx, -dy, dx, dy)
+
+        if not area_polygon.intersects(image_polygon):
             return None
         
-        return polygon_ic.intersection(image_polygon)
+        return area_polygon.intersection(image_polygon)
 
     # def save_tile_map(self) -> None:
     #     ax = plt.gca()
@@ -137,11 +138,11 @@ class TiledImage:
                     bbox = sg.box(x, y, x+tile_w, y+tile_h) # Bbox in image coordinates
 
                     if bbox.intersects(self.exclude_area_polygon): continue
+                    if self.include_area_polygon is not None and not bbox.intersection(self.include_area_polygon).area / bbox.area > 0.75: continue
 
-                    if self.include_area_polygon is not None and bbox.intersection(self.include_area_polygon).area / bbox.area > 0.75:
-                        crop_box = (j, i-tile_h, j+tile_w, i) # region in pixel coordinates for PIL.crop
-                        tile_image = image.crop(crop_box)
-                        tiles.append(Tile(self, tile_image, crop_box, bbox))
+                    crop_box = (j, i-tile_h, j+tile_w, i) # region in pixel coordinates for PIL.crop
+                    tile_image = image.crop(crop_box)
+                    tiles.append(Tile(self, tile_image, crop_box, bbox))
         return tiles
 
 
@@ -170,7 +171,7 @@ if __name__ == '__main__':
             6452011.80591097
         ]
     ]
-    heights = find_heights(coordinates)
+    heights = get_terrain_heights(coordinates)
     print(heights)
 
 

@@ -1,6 +1,6 @@
 {
     "tile_size": 512,
-    "output_folder": "dataset/lindesnes_nadir_test",
+    "output_folder": "dataset/lindesnes_nadir",
     "label_walls": false,
     "annotation_format": "mask",
     "areas": [
@@ -10,33 +10,32 @@
                 "number": 4205
             },
             "cityjson": "data/cityjson/3DBYGG_BASISDATA_4205_LINDESNES_5972_FKB-BYGNING_SOSI_CityGML_reprojected.json",
-            "include": {
+            "exclude": [
+              {
                 "type": "Polygon",
                 "coordinates": [
                   [
-                    [
-                      412940.28756845824,
-                      6452011.80591097
-                    ],
-                    [
-                      412947.64909195655,
-                      6452346.768161283
-                    ],
-                    [
-                      413210.5612016448,
-                      6452340.998732395
-                    ],
-                    [
-                      413203.22191662807,
-                      6452006.036181933
-                    ],
-                    [
-                      412940.28756845824,
-                      6452011.80591097
-                    ]
+                    [ 411962, 6456331, 177.87],
+                    [ 411976, 6456934, 39.09],
+                    [ 412657, 6456919, 46.03],
+                    [ 412644, 6456316, 32.35],
+                    [ 411962, 6456331, 177.87]
+                  ]
+                ]
+              },
+              {
+                "type": "Polygon",
+                "coordinates": [
+                  [
+                    [ 412950, 6451550, 30.24 ],
+                    [ 412950, 6452350, 60.03 ],
+                    [ 413600, 6452350, 37.15 ],
+                    [ 413600, 6451550, 24.37 ],
+                    [ 412950, 6451550, 30.24 ]
                   ]
                 ]
               }
+          ]
         }
     ],
     "images": [

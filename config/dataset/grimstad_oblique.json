@@ -9,7 +9,34 @@
                 "name": "Grimstad",
                 "number": 4202
             },
-            "cityjson": "data/cityjson/3DBYGG_BASISDATA_4202_GRIMSTAD_5972_FKB-BYGNING_SOSI_CityGML_reprojected.json"
+            "cityjson": "data/cityjson/3DBYGG_BASISDATA_4202_GRIMSTAD_5972_FKB-BYGNING_SOSI_CityGML_reprojected.json",
+            "exclude": {
+                "type": "Polygon",
+                "coordinates": [
+                  [
+                    [
+                      475762,
+                      6465696
+                    ],
+                    [
+                      475764,
+                      6466022
+                    ],
+                    [
+                      476193,
+                      6466020
+                    ],
+                    [
+                      476191,
+                      6465693
+                    ],
+                    [
+                      475762,
+                      6465696
+                    ]
+                  ]
+                ]
+              }
         }
     ],
     "images": [

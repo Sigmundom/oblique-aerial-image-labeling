@@ -1,0 +1,90 @@
+{
+    "tile_size": 512,
+    "output_folder": "dataset/lindesnes",
+    "images": [
+        "/media/sigmundmestad/aa7e1253-187b-48d4-af32-eb9f050db5dd/sigmunom/data"
+    ],
+    "image_data_format": "shp",
+    "image_data": [
+        "/media/sigmundmestad/aa7e1253-187b-48d4-af32-eb9f050db5dd/sigmunom/Dekningsoversikt/TT-30243_Vertikal-Skrå"           
+    ],
+    "test_area": {
+        "type": "Polygon",
+        "coordinates": [
+        [
+          [
+            412950,
+            6451550
+          ],
+          [
+            412950,
+            6452350
+          ],
+          [
+            413600,
+            6452350
+          ],
+          [
+            413600,
+            6451550
+          ],
+          [
+            412950,
+            6451550
+          ]
+        ]
+      ]
+    },
+    "cameras": [
+        {
+            "cam_id": "cam4B",
+            "f": 123.38,
+            "PPx": 0,
+            "PPy": 0,
+            "width_mm": 53.181,
+            "height_mm": 39.706,
+            "width_px": 14144,
+            "height_px": 10560
+        },
+        {
+            "cam_id": "cam5R",
+            "f": 123.38,
+            "PPx": 0,
+            "PPy": 6.68,
+            "width_mm": 39.706,
+            "height_mm": 53.181,
+            "width_px": 10560,
+            "height_px": 14144
+        },
+        {
+            "cam_id": "cam6L",
+            "f": 123.38,
+            "PPx": 0,
+            "PPy": 6.68,
+            "width_mm": 39.706,
+            "height_mm": 53.181,
+            "width_px": 10560,
+            "height_px": 14144
+        },
+        {
+            "cam_id": "cam7F",
+            "f": 123.38,
+            "PPx": 0,
+            "PPy": 0,
+            "width_mm": 53.181,
+            "height_mm": 39.706,
+            "width_px": 14144,
+            "height_px": 10560
+        },
+        {
+          "cam_id": "cam0N",
+          "f": 79.6,
+          "PPx": 0,
+          "PPy": 0,
+          "width_mm": 77.245,
+          "height_mm": 52.7,
+          "width_px": 20544,
+          "height_px": 14016
+      }
+    ]
+}

@@ -1,4 +1,5 @@
 import math
+import random
 from matplotlib import cm
 import numpy as np
 import matplotlib.pyplot as plt
@@ -7,7 +8,10 @@ from utils import SurfaceType, create_coco_rle_annotation
 from .building import Building 
 from .tile import Tile
 
-class AnnotatedTile(Tile):  
+
+class AnnotatedTile(Tile): 
+    export_counter = 0
+
     def __init__(self, tile:Tile, buildings:list[Building]):
         super().__init__(tile.parent, tile.tile_image, tile.crop_box, tile.bbox)
         self.buildings = buildings
@@ -62,6 +66,13 @@ class AnnotatedTile(Tile):
     def export_tile_with_label(self, label_walls):
         """Exports the tile as jpg in '/img' and label as png in /label"""
         mask = self._create_mask(label_walls)
-        if mask.sum() / math.prod(self.parent.tile_size) > .05:
+        percent_buildings = mask.sum() / math.prod(self.parent.tile_size)
+        if  percent_buildings > .05:
             self.save()
             plt.imsave(f'{self.parent.output_folder}/label/{repr(self)}.png', mask, cmap=cm.gray)
+            AnnotatedTile.export_counter += 1
+        elif percent_buildings == 0 and AnnotatedTile.export_counter >= 20:
+            # Gives 5 images without any buildings for every 100 with buildings.
+            self.save()
+            plt.imsave(f'{self.parent.output_folder}/label/{repr(self)}.png', mask, cmap=cm.gray)
+            AnnotatedTile.export_counter -= 20
