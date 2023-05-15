@@ -14,12 +14,11 @@ srid = 25832
 
 
 
-tile_size = 512
 
 img_format = "GeoTiff"
     # if os.path.exists(file_name):
     #     return rasterio.open(file_name)
-def get_heights_tiff(area: Polygon, folder_path=None) -> DatasetReader:
+def get_heights_tiff(area: Polygon, folder_path=None, tile_size=512) -> DatasetReader:
     # file_name = f'cache/laser_data/heights_{"_".join((format(x, ".2f") for x in area.centroid.coords[0]))}.tiff'
 
     bounds = area.bounds

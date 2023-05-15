@@ -15,7 +15,7 @@ def get_camera(cameras, image_name) -> Camera:
     cam_id = re.search("cam\d[BFRLN]", image_name, re.IGNORECASE)
     if cam_id is None:
         raise ValueError(f'Image name "{image_name}" does not contain a valid camera_id')
-    cam_id = cam_id.group().lower()
+    cam_id = cam_id.group()
     if cam_id in cameras:
         return cameras[cam_id]
 

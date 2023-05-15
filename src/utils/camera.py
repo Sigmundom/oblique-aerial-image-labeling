@@ -3,16 +3,16 @@ from math import cos, sin
 
 class Camera():
     def __init__(self, camera_info):
-        self.cam_id = camera_info['cam_id']
-        self.f = camera_info['f']
-        self.PPx = camera_info['PPx']
-        self.PPy = camera_info['PPy']
-        self.width_px = camera_info['width_px']
-        self.height_px = camera_info['height_px']
-        self.width_mm = camera_info['width_mm']
-        self.height_mm = camera_info['height_mm']
-        self.scale_x = self.width_px / self.width_mm
-        self.scale_y = self.height_px / self.height_mm
+        self.cam_id: str = camera_info['cam_id']
+        self.f: float = camera_info['f']
+        self.PPx: float = camera_info['PPx']
+        self.PPy: float = camera_info['PPy']
+        self.width_px: int = camera_info['width_px']
+        self.height_px: int = camera_info['height_px']
+        self.width_mm: float = camera_info['width_mm']
+        self.height_mm: float = camera_info['height_mm']
+        self.scale_x: float = self.width_px / self.width_mm
+        self.scale_y: float = self.height_px / self.height_mm
 
 
     def get_wc_to_ic_transformer(self, X_0, Y_0, Z_0, omega, phi, kappa):

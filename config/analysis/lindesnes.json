@@ -1,43 +1,39 @@
 {
-    "tile_size": 512,
-    "output_folder": "dataset/lindesnes",
-    "images": [
+  "folder": "analysis/test",
+  "images": [
         "/media/sigmundmestad/aa7e1253-187b-48d4-af32-eb9f050db5dd/sigmunom/data"
     ],
     "image_data_format": "shp",
     "image_data": [
         "/media/sigmundmestad/aa7e1253-187b-48d4-af32-eb9f050db5dd/sigmunom/Dekningsoversikt/TT-30243_Vertikal-Skrå"           
     ],
-    "test_area": {
-        "type": "Polygon",
-        "coordinates": [
+    "test_area_actual": {
+      "type": "Polygon",
+      "coordinates": [
         [
-          [
-            412950,
-            6451550
-          ],
-          [
-            412950,
-            6452350
-          ],
-          [
-            413600,
-            6452350
-          ],
-          [
-            413600,
-            6451550
-          ],
-          [
-            412950,
-            6451550
-          ]
+          [ 412950, 6451550],
+          [ 412950, 6452350],
+          [ 413600, 6452350],
+          [ 413600, 6451550],
+          [ 412950, 6451550]
+        ]
+      ]
+    },
+    "test_area": {
+      "type": "Polygon",
+      "coordinates": [
+        [
+          [ 413000, 6452250],
+          [ 413000, 6452350],
+          [ 413100, 6452350],
+          [ 413100, 6452250],
+          [ 413000, 6452250]
         ]
       ]
     },
     "cameras": [
         {
-            "cam_id": "cam4B",
+            "cam_id": "Cam4B",
             "f": 123.38,
             "PPx": 0,
             "PPy": 0,
@@ -47,7 +43,7 @@
             "height_px": 10560
         },
         {
-            "cam_id": "cam5R",
+            "cam_id": "Cam5R",
             "f": 123.38,
             "PPx": 0,
             "PPy": 6.68,
@@ -57,7 +53,7 @@
             "height_px": 14144
         },
         {
-            "cam_id": "cam6L",
+            "cam_id": "Cam6L",
             "f": 123.38,
             "PPx": 0,
             "PPy": 6.68,
@@ -67,7 +63,7 @@
             "height_px": 14144
         },
         {
-            "cam_id": "cam7F",
+            "cam_id": "Cam7F",
             "f": 123.38,
             "PPx": 0,
             "PPy": 0,
@@ -77,7 +73,7 @@
             "height_px": 10560
         },
         {
-          "cam_id": "cam0N",
+          "cam_id": "Cam0N",
           "f": 79.6,
           "PPx": 0,
           "PPy": 0,

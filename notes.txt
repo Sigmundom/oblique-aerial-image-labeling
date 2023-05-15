@@ -33,3 +33,7 @@ test area:
 }
 
 raster data 0-1
+
+Training:
+nadir: 5min / epoch
+oblique: 12,5min /epoch
