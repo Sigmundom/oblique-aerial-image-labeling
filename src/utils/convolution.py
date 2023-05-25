@@ -28,7 +28,7 @@ def smooth(data, data_count, kernel_size=7, sigma=2.5):
     for i in range(radius, data.shape[0]-radius):
         for j in range(radius, data.shape[1]-radius):
             # Calculate the weights for the current pixel based on the neighboring observations
-            weights = data_count[i-radius:i+radius+1, j-radius:j+radius+1]
+            weights = data_count[i-radius:i+radius+1, j-radius:j+radius+1] + 1
             if weights.sum() == 0:
                 weighted_kernel = kernel
             else:
@@ -38,7 +38,7 @@ def smooth(data, data_count, kernel_size=7, sigma=2.5):
                 weighted_kernel /= weighted_kernel.sum()
             # Apply the kernel to the current pixel
             result[i, j] = np.sum(data[i-radius:i+radius+1, j-radius:j+radius+1] * weighted_kernel)
-    result = result[radius:-radius]
+    result = result[radius:-radius, radius:-radius]
     print('Process time:', default_timer()-t)
     return result
 

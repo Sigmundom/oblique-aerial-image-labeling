@@ -12,7 +12,7 @@ from utils import get_image_bbox, Camera
 import re
 
 def get_camera(cameras, image_name) -> Camera:
-    cam_id = re.search("cam\d[BFRLN]", image_name, re.IGNORECASE)
+    cam_id = re.search("Cam\d[BFRLN]", image_name, re.IGNORECASE)
     if cam_id is None:
         raise ValueError(f'Image name "{image_name}" does not contain a valid camera_id')
     cam_id = cam_id.group()

@@ -3,17 +3,17 @@ import math
 import os
 import click
 import numpy as np
+from tqdm import tqdm
+from config import TILE_SIZE_M, TILE_SIZE_PX
 from core.image_data import ImageDataList, ImageDataRecord
 from shapely.geometry import Polygon, box
 from PIL import Image
-from utils import get_terrain_heights
+from utils import get_terrain_heights, Camera, ensure_folder_exists
 
-from utils.camera import Camera
-from utils.utils import ensure_folder_exists
+# from utils.camera import Camera
+# from utils.ensure_folder_exists import ensure_folder_exists
 
 Image.MAX_IMAGE_PIXELS = 287944704
-TILE_SIZE_M = 50
-TILE_SIZE_PX = 512
 
 # def expand2square(pil_img, size=512, background_color=(0,0,0)):
 #     width, height = pil_img.size
@@ -61,7 +61,6 @@ def prepare_tile(x: int, y:int, cameras, images: list[ImageDataRecord], output_f
             if sum(abs(x) for x in bbox) < sum(abs(x) for x in best_bbox):
                 best_bbox = bbox
                 best_image = im_data
-
         if best_image is None:
             raise Exception(f'No image from camera {cam_id} matching the area')
 
@@ -129,6 +128,7 @@ def prepare_tile(x: int, y:int, cameras, images: list[ImageDataRecord], output_f
 def prepare_analysis():
     #### Parameters ####
     config = 'config/analysis/lindesnes.json'
+    # config = 'config/analysis/grimstad.json'
     # test_area = {
     #     'minx': 412950,
     #     'maxx': 413200,
@@ -161,18 +161,20 @@ def prepare_analysis():
 
     # test_area_polygon = box(test_area['minx'], test_area['miny'], test_area['maxx'], test_area['maxy'])
     images:list[ImageDataRecord] = list(filter(lambda im: test_area_polygon.intersects(im.bbox), image_data))
-    
+
     minx, miny = test_area_coordinates.min(axis=0)
     maxx, maxy = test_area_coordinates.max(axis=0)
-    # prepare for each tile...
-    for x in range(minx, maxx, TILE_SIZE_M):
-        if maxx - x < TILE_SIZE_M: print(f'Test area is extended to the right by {maxx-x} meters')
 
-        for y in range(miny, maxy, TILE_SIZE_M):
-            if maxy - y < TILE_SIZE_M: print(f'Test area is extended upwards by {maxy-y} meters')
+    with tqdm(total=((maxx-minx)/TILE_SIZE_M) * ((maxy-miny) / TILE_SIZE_M)) as pbar:
+        # prepare for each tile...
+        for x in range(minx, maxx, TILE_SIZE_M):
+            if maxx - x < TILE_SIZE_M: print(f'Test area is extended to the right by {maxx-x} meters')
 
-            prepare_tile(x, y, cameras, images, output_folder)
+            for y in range(miny, maxy, TILE_SIZE_M):
+                if maxy - y < TILE_SIZE_M: print(f'Test area is extended upwards by {maxy-y} meters')
 
+                prepare_tile(x, y, cameras, images, output_folder)
+                pbar.update(1)
 
 
 

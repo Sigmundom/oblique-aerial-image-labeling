@@ -1,5 +1,5 @@
 {
-  "folder": "analysis/test",
+  "folder": "analysis/lindesnes",
   "images": [
         "/media/sigmundmestad/aa7e1253-187b-48d4-af32-eb9f050db5dd/sigmunom/data"
     ],
@@ -7,7 +7,7 @@
     "image_data": [
         "/media/sigmundmestad/aa7e1253-187b-48d4-af32-eb9f050db5dd/sigmunom/Dekningsoversikt/TT-30243_Vertikal-Skrå"           
     ],
-    "test_area_actual": {
+    "test_area": {
       "type": "Polygon",
       "coordinates": [
         [
@@ -19,7 +19,7 @@
         ]
       ]
     },
-    "test_area": {
+    "test_area_test": {
       "type": "Polygon",
       "coordinates": [
         [

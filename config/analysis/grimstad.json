@@ -1,0 +1,82 @@
+{
+  "folder": "analysis/test_grimstad",
+  "images": [
+    "data/images/Bakoverrettede bilder",
+    "data/images/Høyrerettede bilder",
+    "data/images/Venstrerettede bilder",
+    "data/images/Framoverrettede bilder",
+    "data/images/Vertikalbilder"
+  ],
+  "image_data_format": "sos",
+  "image_data": [
+      "data/Somlinjefiler/cam4B.sos",
+      "data/Somlinjefiler/cam5R.sos",
+      "data/Somlinjefiler/cam6L.sos",
+      "data/Somlinjefiler/cam7F.sos",
+      "data/Somlinjefiler/cam0N.sos"  
+  ],
+  "test_area": {
+    "type": "Polygon",
+    "coordinates": [
+      [
+        [476130, 6465900],
+        [476130, 6465950],
+        [476280, 6465950],
+        [476280, 6465900],
+        [476130, 6465900]
+      ]
+    ]
+  },
+    "cameras": [
+      {
+        "cam_id": "Cam4B",
+        "f": 122.982,
+        "PPx": -0.015,
+        "PPy": 0.019,
+        "width_mm": 53.560,
+        "height_mm": 40.04,
+        "width_px": 10300,
+        "height_px": 7700
+    },
+    {
+        "cam_id": "Cam5R",
+        "f": 122.980,
+        "PPx": -0.036,
+        "PPy": 6.77,
+        "width_mm": 40.04,
+        "height_mm": 53.560,
+        "width_px": 7700,
+        "height_px": 10300
+    },
+    {
+        "cam_id": "Cam6L",
+        "f": 122.982,
+        "PPx": -0.028,
+        "PPy": 6.788,
+        "width_mm": 40.04,
+        "height_mm": 53.560,
+        "width_px": 7700,
+        "height_px": 10300
+    },
+    {
+        "cam_id": "Cam7F",
+        "f": 122.981,
+        "PPx": -0.011,
+        "PPy": 0.029,
+        "width_mm": 53.560,
+        "height_mm": 40.04,
+        "width_px": 10300,
+        "height_px": 7700
+    },
+    {
+      "cam_id": "Cam0N",
+      "f": 82,
+      "PPx": 0,
+      "PPy": 0,
+      "width_mm": 70.044,
+      "height_mm": 45.084,
+      "width_px": 13470,
+      "height_px": 8670
+  }
+    ]
+}

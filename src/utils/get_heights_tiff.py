@@ -16,10 +16,10 @@ srid = 25832
 
 
 img_format = "GeoTiff"
-    # if os.path.exists(file_name):
-    #     return rasterio.open(file_name)
 def get_heights_tiff(area: Polygon, folder_path=None, tile_size=512) -> DatasetReader:
-    # file_name = f'cache/laser_data/heights_{"_".join((format(x, ".2f") for x in area.centroid.coords[0]))}.tiff'
+    file_name = f'cache/laser_data/heights_{"{:.0f}_{:.0f}".format(*area.centroid.coords[0])}.tiff'
+    if os.path.exists(file_name):
+        return rasterio.open(file_name)
 
     bounds = area.bounds
     params = {
@@ -36,10 +36,10 @@ def get_heights_tiff(area: Polygon, folder_path=None, tile_size=512) -> DatasetR
     response = requests.get(url, params=params, stream=True,
                         headers=None, timeout=None)
     if response.status_code == 200:
-        if folder_path is not None:
-            with open(os.path.join(folder_path, 'heights.tiff'), 'wb') as f:
-                f.write(response.content)
-                print('File saved successfully.')
+        # if folder_path is not None:
+        # with open(os.path.join(folder_path, 'heights.tiff'), 'wb') as f:
+        with open(file_name, 'wb') as f:
+            f.write(response.content)
         return rasterio.open(io.BytesIO(response.content))
     else:
         raise requests.HTTPError(f'Request failed with status code {response.status_code}')

@@ -1,51 +1,47 @@
-from itertools import chain
 import json
 import math
 import os
 import click
+from scipy.spatial import Delaunay
 from matplotlib import pyplot as plt
 import numpy as np
 from shapely.geometry import box
+from tqdm import tqdm
+from config import BUFFER, HEIGHT_PX_OFFSET, HEIGHT_RASTER_SIZE, PX_P_M, RASTER_SIZE, THRESH, TILE_SIZE_M
 from core.image_data import ImageDataList, ImageDataRecord
-from scripts.prepare_analysis import TILE_SIZE_M, TILE_SIZE_PX
-from utils import get_heights_tiff
+from utils import ensure_folder_exists, filter_height_values, get_heights_tiff, Camera, save_corrected_nadir_mask, make_histogram
 from PIL import Image, ImageTransform
-from scipy.ndimage import median_filter
+from scipy.ndimage import median_filter, gaussian_filter
 from scipy.interpolate import LinearNDInterpolator
-
-from utils.camera import Camera
 import rasterio
-from rasterio.transform import xy, rowcol
+from rasterio.transform import from_bounds
+
+import rasterio
+from rasterio.transform import  rowcol
 
 from utils.convolution import smooth
-from utils.utils import ensure_folder_exists
-
-RESULT_TILE_SIZE_PX = 500
-
-# def save(result, thresh):
-#     im = Image.fromarray((result>=thresh).astype(np.uint8)*255)
-#     im.save(f'outputs/test/output_smooth_{thresh}.png')
-    # plt.imsave(f'outputs/test/output_smooth_{thresh}.png', (result>=thresh).astype(np.uint8)*255)
+# from utils.camera import Camera
+# from utils.nadir_mask import save_corrected_nadir_mask
+# from utils.convolution import smooth
+# from utils.ensure_folder_exisits import ensure_folder_exists, make_histogram
 
 
-def interpolate_heights(points, width, height):
-    z_grid = -np.ones((height, width))
-    for point in points:
-        r, c = np.floor(point[:2]).astype(int)
-        if 0 > c or c >= width or 0 > r or r >= height: continue
-        z = point[2]
-        if z > z_grid[r, c]:
-            z_grid[r,c] = z
 
-    interp_func = LinearNDInterpolator(np.argwhere(z_grid != -1), z_grid[z_grid != -1], fill_value=0)
-    missing_indices = np.argwhere(z_grid == -1)
 
-    z_grid[missing_indices[:, 0], missing_indices[:, 1]] = interp_func(*missing_indices.T)
 
-    z_grid = median_filter(z_grid, size=(15,5))
+
+
+
+def interpolate_heights(height_values, building_pixels, height, width):
+    z_grid = np.zeros((height, width))
+
+    interp_func = LinearNDInterpolator(height_values[:,:2], height_values[:,2], fill_value=0)
+
+    res = interp_func(*building_pixels.T)
+
+    z_grid[building_pixels[:,0], building_pixels[:, 1]] = res
 
     return z_grid
-
 
 def analyze_tile(tile_dir: str, image_data: list[ImageDataRecord]):
     mask_dir = os.path.join(tile_dir, 'masks')
@@ -56,152 +52,233 @@ def analyze_tile(tile_dir: str, image_data: list[ImageDataRecord]):
     # Check if any of the masks has detected buildings
     tile_contains_buildings = False
     for mask in masks:
-        if np.sum(mask>0.5) > 0.001:
+        if np.sum(mask>THRESH) > 0.001:
             tile_contains_buildings = True
     if not tile_contains_buildings: return #TODO: Possibly create a empty tile?
+
+    result_dir = os.path.join(tile_dir, 'results')
+    ensure_folder_exists(result_dir)
 
     with open(os.path.join(tile_dir, 'info.json'), 'r') as f:
         tile_info = json.load(f)
 
     tile_x = tile_info['x']
     tile_y = tile_info['y']
-    print(tile_x, tile_y)
+    tile_maxx = tile_x + TILE_SIZE_M
+    tile_maxy = tile_y + TILE_SIZE_M
 
-    aoi = box(tile_x, tile_y, tile_x+TILE_SIZE_M, tile_y+TILE_SIZE_M)
-    heights_tiff = get_heights_tiff(aoi)
+    aoi = box(tile_x, tile_y, tile_maxx, tile_maxy)
     
-    result_dir = os.path.join(tile_dir, 'results')
-    ensure_folder_exists(result_dir)
 
+    heights_tiff = get_heights_tiff(aoi.buffer(BUFFER), tile_size=HEIGHT_RASTER_SIZE)
     heights = heights_tiff.read(1)
 
-    # Save image of heights just because
+    # # Save image of heights just because
     h = ((heights / heights.max()) * 255).astype(np.uint8)
     plt.imsave(os.path.join(result_dir, 'heights.png'), h)
     
 
-    rows = np.arange(512).repeat(512)
-    cols = np.resize(np.arange(512), 512*512)
-    x, y = xy(heights_tiff.transform, rows, cols) #World coordinate for each pixel
-    xyz = np.array([x, y, heights.flatten()]).T # List of each coordinate, heights included
 
-    result = np.zeros((512, 512))
-    count = np.zeros((512,512), dtype=np.uint8)
+    x_values = np.linspace(tile_x-BUFFER+HEIGHT_PX_OFFSET, tile_x + BUFFER + TILE_SIZE_M-HEIGHT_PX_OFFSET, HEIGHT_RASTER_SIZE)
+    y_values = np.linspace(tile_y-BUFFER+HEIGHT_PX_OFFSET, tile_y + BUFFER + TILE_SIZE_M-HEIGHT_PX_OFFSET, HEIGHT_RASTER_SIZE)
+    x = np.tile(x_values, HEIGHT_RASTER_SIZE) # [1,2,3,1,2,3,1,...]
+    y = np.repeat(y_values[::-1], HEIGHT_RASTER_SIZE) #[3,3,3,2,2,2,1,...]
+    xyz = np.array([x, y, heights.flatten()]).T # List of each coordinate, heights included
+    
+
+    result = np.zeros((RASTER_SIZE, RASTER_SIZE))
+    count = np.zeros((RASTER_SIZE,RASTER_SIZE), dtype=np.uint8)
+
+    transform = from_bounds(tile_x, tile_y, tile_maxx, tile_maxy, RASTER_SIZE, RASTER_SIZE)
     profile = heights_tiff.profile
     profile['dtype'] = rasterio.uint8
-    output = rasterio.open(f"{result_dir}/output.tif", "w", **profile)
-
+    profile['width'] = RASTER_SIZE
+    profile['height'] = RASTER_SIZE
+    profile['transform'] = transform
     image_info:dict = tile_info['image_info']
     for cam_id, info in image_info.items():
         im_name = info['image_name']
         im_data = next(x for x in image_data if x.name == im_name)
 
-        laser_data_ic = im_data.wc_to_ic(xyz)
-        minx, miny, maxx, maxy = info['bbox_ic']
-
-        laser_data_tc = np.zeros((512*512, 3), dtype=np.float32)
-        laser_data_tc[:,0] = maxy - laser_data_ic[:,1] 
-        laser_data_tc[:,1] = laser_data_ic[:,0] - minx
-        laser_data_tc[:,2] = xyz[:,2]
-
         cropbox_size = info['cropbox_size']
         dx = info['dx']
         dy = info['dy']
+        minx, miny, maxx, maxy = info['bbox_ic']
+
         mask_w = int(cropbox_size - 2*dx)
         mask_h = int(cropbox_size - 2*dy)
-        z_grid = interpolate_heights(laser_data_tc, mask_w, mask_h)
-        plt.imsave(f'{result_dir}/z_grid.png', z_grid)
-
         cropbox = (math.floor(dx), math.floor(dy), cropbox_size - math.ceil(dx), cropbox_size - math.ceil(dy))
         mask_im = Image.open(os.path.join(mask_dir, f'{im_name}.png')).resize((cropbox_size, cropbox_size))
-        mask = np.array(mask_im.crop(cropbox))
-        mask = mask / 255
-        indices = np.where(mask < 2)
-        print(indices)
-        x = indices[1] + minx
-        y = maxy - indices[0]
-        Z = z_grid[indices]
-
+        
         if cam_id == 'Cam0N':
-            # Transforms and saves the nadir mask with correct orientation 
-            left, right = tile_x, tile_x + TILE_SIZE_M
-            bottom, top = tile_y, tile_y + TILE_SIZE_M
-            corners_lng = [left, left, right, right]
-            corners_lat = [top, bottom, bottom, top]
-
-            corners_row, corners_col = rowcol(output.transform, corners_lng, corners_lat)
-            for arr in [corners_row, corners_col]:
-                for i in range(4):
-                    if arr[i] >= TILE_SIZE_PX:
-                        arr[i] = TILE_SIZE_PX-1
-                    elif arr[i] < 0:
-                        arr[i] = 0
+            nadir_result = save_corrected_nadir_mask(tile_x, tile_y, result_dir, heights, heights_tiff.transform, im_data, minx, miny, mask_im, mask_h)
+            nadir_result[nadir_result < THRESH] = 0
+            result += nadir_result**2
+        else:
+            mask = np.array(mask_im.crop(cropbox))
+            mask = mask / 255
             
-            corners_xy = im_data.wc_to_ic(np.array([corners_lng, corners_lat, heights[corners_row, corners_col]]).T)
-            corners_x = corners_xy[:,0]
-            corners_y = corners_xy[:,1]
-            corners_x -= minx
-            corners_y = mask_h - (corners_y - miny)
+            if not np.any(mask > THRESH): continue
+            building_pixels = np.argwhere(mask > THRESH)
+
+            laser_data_ic = im_data.wc_to_ic(xyz)
+            laser_data_tc = np.zeros((HEIGHT_RASTER_SIZE*HEIGHT_RASTER_SIZE, 3), dtype=np.float32)
+            laser_data_tc[:,0] = maxy - laser_data_ic[:,1] 
+            laser_data_tc[:,1] = laser_data_ic[:,0] - minx
+            laser_data_tc[:,2] = xyz[:,2]
+
+            x_mask = np.equal.outer(laser_data_tc[:,0].astype(np.int16), building_pixels[:, 0])
+            y_mask = np.equal.outer(laser_data_tc[:,1].astype(np.int16), building_pixels[:, 1])
+            selected_indices = np.where(np.logical_and(x_mask, y_mask).any(axis=1))[0]
+
+            # Select points using the indices
+            laser_data_tc = laser_data_tc[selected_indices]
+
+            laser_data_tc = filter_height_values(laser_data_tc, mask_w, mask_h)
+
+            if len(laser_data_tc) < 4: continue
+
+            z_grid = interpolate_heights(laser_data_tc, building_pixels, mask_h, mask_w)
+            z = ((z_grid / z_grid.max()) * 255).astype(np.uint8)
+            plt.imsave(os.path.join(result_dir, f'z_grid_{cam_id}.png'), z)
+
+            rows = building_pixels[:,0]
+            cols = building_pixels[:,1]
+            x = cols + minx
+            y = maxy - rows
+            Z = z_grid[rows, cols]
+
+            lng, lat = im_data.ic_to_wc(x, y, Z) 
             
-            # Define 8-tuple with x,y coordinates of top-left, bottom-left, bottom-right and top-right corners and apply
-            transform = np.empty(8)
-            transform[0::2] = corners_x
-            transform[1::2] = corners_y
-            nadir_result = mask_im.transform((TILE_SIZE_PX, TILE_SIZE_PX), ImageTransform.QuadTransform(transform))
-            nadir_result_arr = np.array(nadir_result) / 255
-            nadir_result_sharp = Image.fromarray((nadir_result_arr > 0.5).astype(np.uint8)*255)
-            
-            nadir_result.save(f'{result_dir}/nadir_result.png')
-            nadir_result_sharp.save(f'{result_dir}/nadir_result_sharp.png')
 
-        corners_lng, corners_lat = im_data.ic_to_wc(x, y, Z) 
-        rows, cols = rowcol(output.transform, corners_lng, corners_lat)
-        for r, c, score in zip(rows, cols, mask[indices]):
-            if r < 0 or r > 511 or c < 0 or c > 511:
-                continue
-            else:
-                result[r,c] += score
-                count[r,c] += 1
+            result_rows, result_cols = rowcol(transform, lng, lat)
+            tmp_result = np.zeros((RASTER_SIZE, RASTER_SIZE))
+            for r, c, score  in zip(result_rows, result_cols, mask[rows, cols]):
+                if r < 0 or r > RASTER_SIZE-1 or c < 0 or c > RASTER_SIZE-1:
+                    continue
+                else:
+                    tmp_result[r,c] += score
+                    count[r,c] += 1
+            plt.imsave(f'{result_dir}/result_{cam_id}.png', tmp_result)
+            result += tmp_result
 
-    # plt.imsave(f'{result_folder}/count.png', count)
-    # count_0 = (count == 0).astype(np.uint8) * 255
-    # plt.imsave(f'{result_folder}/count_0.png', count_0)
-
-    # result_1 = result / result.max()
-    # result_255 = result_1 * 255
-    # result_255 = result_255.astype(np.uint8)
-    # output.write(result_255, 1)
-    # plt.imsave(f'{result_folder}/output.png', result_255)
-
-    result_scaled = result/(count+1e-15)
-    # result_scaled = result_scaled / result_scaled.max()
-    result_scaled_im = Image.fromarray((result_scaled * 255).astype(np.uint8))
-    result_scaled_im.save(f'{result_dir}/output_scaled.png')
-
-    smoothed = smooth(result_scaled, count)
-    # Print the smoothed raster
-    # smoothed = smoothed_sum / smoothed_sum.max()
-    # plt.imsave(f'{result_folder}/smooth.png', (smoothed*255).astype(np.uint8))
-    im = Image.fromarray((smoothed*255).astype(np.uint8))
-    im.save(f'{result_dir}/smooth.png')
+    plt.close()
+    plt.imsave(f'{result_dir}/count.png', count)
     
-    for thresh in [0.3, 0.4, 0.5, 0.6, 0.7]:
-        im = Image.fromarray((smoothed>=thresh).astype(np.uint8)*255)
-        im.save(f'{result_dir}/thresh_{thresh}.png')
+    result_smooth = median_filter(result, 7)
+    # result_smooth = smooth(result, count)
+    result_sharp_5 = result_smooth >= 1.5
+    result_sharp_75 = result_smooth >= 1.75
+    result_sharp_2 = result_smooth >= 2
+    result_sharp_2_25 = result_smooth >= 2.25
+  
+    save_image(result, f'{result_dir}/result.png')
+    save_image(result_smooth, f'{result_dir}/result_smooth.png')
+    save_image(result_sharp_5, f'{result_dir}/result_sharp_1_5.png', mode='1')
+    save_image(result_sharp_75, f'{result_dir}/result_sharp_1_75.png', mode='1')
+    save_image(result_sharp_2, f'{result_dir}/result_sharp_2.png', mode='1')
+    save_image(result_sharp_2_25, f'{result_dir}/result_sharp_2_25.png', mode='1')
 
 
+def img_frombytes(data):
+    size = data.shape[::-1]
+    databytes = np.packbits(data, axis=1)
+    return Image.frombytes(mode='1', size=size, data=databytes)
+
+def save_image(arr, name, mode='L'):
+    if mode == '1':
+        im = img_frombytes(arr)
+    else:
+        im = Image.fromarray(((arr/arr.max())*255).astype(np.uint8), mode)
+    im.save(name)
+
+def compile_tiles(analysis_folder):
+    tile_xs = []
+    tile_ys = []
+    for tile_folder in os.listdir(analysis_folder):
+        x, y = tile_folder.split('_')
+        tile_xs.append(int(x))
+        tile_ys.append(int(y))
+    tile_minx, tile_maxx = min(tile_xs), max(tile_xs)
+    tile_miny, tile_maxy = min(tile_ys), max(tile_ys)
+    area_width = tile_maxx - tile_minx + TILE_SIZE_M
+    area_height = tile_maxy - tile_miny + TILE_SIZE_M
+
+    nadir_result = np.zeros((area_height*PX_P_M, area_width*PX_P_M), dtype=np.uint8)
+    result = np.zeros_like(nadir_result)
+
+    nadir_result_sharp = np.zeros_like(nadir_result, dtype=bool)
+    result_1_5 = np.zeros_like(nadir_result, dtype=bool)
+    result_1_75 = np.zeros_like(nadir_result, dtype=bool)
+    result_2 = np.zeros_like(nadir_result, dtype=bool)
+    result_2_25 = np.zeros_like(nadir_result, dtype=bool)
+
+
+    for tile_folder in tqdm(os.listdir(analysis_folder)):
+        if not os.path.exists(os.path.join(analysis_folder, tile_folder, 'results')): continue
+
+        x, y = tile_folder.split('_')
+        x = (int(x) - tile_minx) * PX_P_M
+        y = (tile_maxy - int(y)) * PX_P_M
+
+        nadir_im = np.array(Image.open(os.path.join(analysis_folder, tile_folder, 'results', 'nadir_result.png')), dtype=np.uint8)
+        nadir_result[y:y+RASTER_SIZE, x:x+RASTER_SIZE] = nadir_im
+
+        nadir_sharp = np.array(Image.open(os.path.join(analysis_folder, tile_folder, 'results', 'nadir_result_sharp.png')), dtype=bool)
+        nadir_result_sharp[y:y+RASTER_SIZE, x:x+RASTER_SIZE] = nadir_sharp
+
+        combined_im = np.array(Image.open(os.path.join(analysis_folder, tile_folder, 'results', 'result_smooth.png')), dtype=np.uint8)
+        result[y:y+RASTER_SIZE, x:x+RASTER_SIZE] = combined_im
+
+        combined_im_1_5 = np.array(Image.open(os.path.join(analysis_folder, tile_folder, 'results', 'result_sharp_1_5.png')), dtype=bool)
+        result_1_5[y:y+RASTER_SIZE, x:x+RASTER_SIZE] = combined_im_1_5
+  
+        combined_im_1_75 = np.array(Image.open(os.path.join(analysis_folder, tile_folder, 'results', 'result_sharp_1_75.png')), dtype=bool)
+        result_1_75[y:y+RASTER_SIZE, x:x+RASTER_SIZE] = combined_im_1_75
+
+        combined_im_2 = np.array(Image.open(os.path.join(analysis_folder, tile_folder, 'results', 'result_sharp_2.png')), dtype=bool)
+        result_2[y:y+RASTER_SIZE, x:x+RASTER_SIZE] = combined_im_2
+
+        combined_im_2_25 = np.array(Image.open(os.path.join(analysis_folder, tile_folder, 'results', 'result_sharp_2_25.png')), dtype=bool)
+        result_2_25[y:y+RASTER_SIZE, x:x+RASTER_SIZE] = combined_im_2_25
+
+
+    save_image(nadir_result, 'compiled/nadir.png')
+    save_image(result, 'compiled/combined.png')
+    save_image(nadir_result_sharp, 'compiled/nadir_sharp.png', mode='1')
+    save_image(result_1_5, 'compiled/combined_1_5.png', mode='1')
+    save_image(result_1_75, 'compiled/combined_1_75.png', mode='1')
+    save_image(result_2, 'compiled/combined_2.png', mode='1')
+    save_image(result_2_25, 'compiled/combined_2_25.png', mode='1')
+
+    transform = from_bounds(tile_minx, tile_miny, tile_maxx, tile_maxy, area_width, area_height)
+
+    combined_prob = (result / 255).astype(np.float32)
+    nadir_prob = (nadir_result / 255).astype(np.float32)
+
+    with rasterio.open('compiled/combined.tiff', 'w', driver='GTiff', height=area_height*PX_P_M, width=area_width*PX_P_M, count=1, dtype=rasterio.float32,
+                   crs='EPSG:25832', transform=transform) as dst:
+        dst.write(combined_prob, 1)
+
+    with rasterio.open('compiled/nadir.tiff', 'w', driver='GTiff', height=area_height*PX_P_M, width=area_width*PX_P_M, count=1, dtype=rasterio.float32,
+                   crs='EPSG:25832', transform=transform) as dst:
+        dst.write(nadir_prob, 1)
 
 
 @click.command()
 def analyze_predictions():
     #### Parameters ####
+    # config = 'config/analysis/grimstad.json'
     config = 'config/analysis/lindesnes.json'
     ###################
-
     with open(config, encoding='utf8') as f:
         config = json.load(f)
 
     analysis_folder = config['folder']
+
+    compile_tiles(analysis_folder)
+    exit()
+
     cameras = {camera_info['cam_id']: Camera(camera_info) for camera_info in config['cameras']}
 
     # Find path to all images used in analysis
@@ -220,11 +297,13 @@ def analyze_predictions():
         raise ValueError(f'"{image_data_format}" is not a valid format. Must be "sos" or "shp"')
 
     
-    for tile_folder in os.listdir(analysis_folder):
+    for tile_folder in tqdm(os.listdir(analysis_folder)):
         
         analyze_tile(os.path.join(analysis_folder, tile_folder), image_data)
 
-    
+    print('Compiling...')
+    compile_tiles(analysis_folder)
+
 
 
 if __name__ == '__main__':
