@@ -32,7 +32,7 @@ def save_corrected_nadir_mask(tile_x, tile_y, result_dir, heights, transform, im
     nadir_result = mask_im.transform((RASTER_SIZE, RASTER_SIZE), ImageTransform.QuadTransform(transform))
     nadir_result_arr = np.array(nadir_result) / 255
     nadir_result_sharp = Image.fromarray((nadir_result_arr > 0.5).astype(np.uint8)*255)
-            
+    Image.fromarray((nadir_result_arr * 255).astype(np.uint8)).save(f'{result_dir}/nadir_result_soft.png')       
     nadir_result.save(f'{result_dir}/nadir_result.png')
     nadir_result_sharp.save(f'{result_dir}/nadir_result_sharp.png')
     return nadir_result_arr

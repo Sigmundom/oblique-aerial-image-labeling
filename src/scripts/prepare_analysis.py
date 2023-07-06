@@ -3,12 +3,17 @@ import math
 import os
 import click
 import numpy as np
+import matplotlib.pyplot as plt
 from tqdm import tqdm
 from config import TILE_SIZE_M, TILE_SIZE_PX
+from core.building_collection import WCBuildingCollection
 from core.image_data import ImageDataList, ImageDataRecord
 from shapely.geometry import Polygon, box
 from PIL import Image
-from utils import get_terrain_heights, Camera, ensure_folder_exists
+import cv2
+from utils import get_orthophoto, get_terrain_heights, Camera, ensure_folder_exists, save_image
+from utils.enums import SurfaceType
+from rasterio.features import rasterize
 
 # from utils.camera import Camera
 # from utils.ensure_folder_exists import ensure_folder_exists
@@ -123,24 +128,81 @@ def prepare_tile(x: int, y:int, cameras, images: list[ImageDataRecord], output_f
         # im = Image.open(best_image.path).crop(cropbox).resize((512,512))
         # im.save(os.path.join(folder_path, f'{best_image.name}_{"_".join((format(x, ".2f") for x in best_bbox))}.jpg'))
 
+def create_test_area_overview(area, folder, x_bounds, y_bounds):
+    width = (x_bounds[1]-x_bounds[0])*2
+    height = (y_bounds[1]-y_bounds[0])*2
+    print(height, width)
+    im_file = get_orthophoto(area, height, width)
+    im = cv2.imread(im_file)
+    cv2.imwrite(f'{folder}/test_area.jpeg', im)
+
+    grid_interval = 100  # Interval between grid lines
+    grid_color = (0, 0, 255)  # Grid line color (in BGR format)
+    grid_thickness = 1  # Grid line thickness
+
+    # Draw vertical grid lines
+    for x in range(0, im.shape[1], grid_interval):
+        cv2.line(im, (x, 0), (x, im.shape[0]), grid_color, grid_thickness)
+
+    # Draw horizontal grid lines
+    for y in range(0, im.shape[0], grid_interval):
+        cv2.line(im, (0, y), (im.shape[1], y), grid_color, grid_thickness)
+
+    cv2.imwrite(f'{folder}/test_area_grid.jpeg', im)
+
+
+    # im_arr = np.array(im)
+    # print(im_arr.shape)
+    # plt.figure(tight_layout=True)
+    # plt.imshow(im_arr)
+    # ax = plt.gca()
+    # ax.grid(True, which='both', linestyle='-', linewidth=0.5,
+    #     color='red')
+    # ax.set_xticks(range(0, width, 100))
+    # ax.set_yticks(range(0, height, 100))
+    # ax.tick_params(axis='both', which='both', length=0, label1On=False)
+    # # ax.axis('off')
+    # plt.savefig(f'{folder}/test_area.jpeg', bbox_inches='tight')
+
+def create_ground_truth(cityjson, municipality, test_area_polygon, x_bounds, y_bounds):
+    height = y_bounds[1]-y_bounds[0]-50
+    width = x_bounds[1]-x_bounds[0]-50
+    # mask = np.zeros((height, width), dtype=np.uint8)
+    # print(x_bounds, y_bounds)
+    def wc_to_ic(P):
+        # print(P)
+        x = (P[:,0]-x_bounds[0]) * 2
+        y = (height-(P[:,1]-y_bounds[0])) * 2
+        # print(x)
+        # print(y)
+        # exit()
+        return np.array([x,y]).T
+    
+    buildings = WCBuildingCollection(cityjson, municipality)
+    buildings_in_area = buildings.get_buildings_in_area(test_area_polygon)
+    for b in buildings_in_area:
+        b.transform_to_image_coordinates(wc_to_ic)
+
+    roof_surfaces = []
+    for building in buildings_in_area:
+        s = building[SurfaceType.ROOF]
+        roof_surfaces.extend(s)
+
+    mask = rasterize(roof_surfaces, default_value=255, fill=0, out_shape=(height*2, width*2), dtype=np.uint8)
+    im = Image.fromarray(mask).save('ground_truth_2.png')
+    # save_image(Image.fromarray(mask), f'ground_truth.png')
+
+
+
 
 @click.command()
-def prepare_analysis():
-    #### Parameters ####
-    config = 'config/analysis/lindesnes.json'
-    # config = 'config/analysis/grimstad.json'
-    # test_area = {
-    #     'minx': 412950,
-    #     'maxx': 413200,
-    #     'miny': 6452000,
-    #     'maxy': 6452350
-    # }
-    #####################
-
+@click.argument('config')
+def prepare_analysis(config):
     with open(config, encoding='utf8') as f:
         config = json.load(f)
 
     output_folder = config['folder']
+    ensure_folder_exists(output_folder)
     cameras = {camera_info['cam_id']: Camera(camera_info) for camera_info in config['cameras']}
     image_paths = [os.path.join(folder, item) for folder in config['images'] for item in os.listdir(folder)]
     
@@ -159,11 +221,18 @@ def prepare_analysis():
     test_area_coordinates = np.array(config['test_area']['coordinates'][0])
     test_area_polygon = Polygon(test_area_coordinates)
 
-    # test_area_polygon = box(test_area['minx'], test_area['miny'], test_area['maxx'], test_area['maxy'])
-    images:list[ImageDataRecord] = list(filter(lambda im: test_area_polygon.intersects(im.bbox), image_data))
-
     minx, miny = test_area_coordinates.min(axis=0)
     maxx, maxy = test_area_coordinates.max(axis=0)
+
+    x_bounds = (minx, maxx+50)
+    y_bounds = (miny, maxy+50)
+
+    # create_test_area_overview(test_area_polygon, output_folder, x_bounds, y_bounds)
+    create_ground_truth(config['cityjson'], config['municipality'], test_area_polygon, x_bounds, y_bounds)
+    exit()
+
+    images:list[ImageDataRecord] = list(filter(lambda im: test_area_polygon.intersects(im.bbox), image_data))
+
 
     with tqdm(total=((maxx-minx)/TILE_SIZE_M) * ((maxy-miny) / TILE_SIZE_M)) as pbar:
         # prepare for each tile...
