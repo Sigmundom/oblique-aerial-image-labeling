@@ -25,7 +25,8 @@ setup(
             'semantic-segmentation = scripts:semantic_segmentation',
             'create-dataset = scripts:create_dataset',
             'prepare_analysis = scripts:prepare_analysis',
-            'analyze_predictions = scripts:analyze_predictions'
+            'analyze_predictions = scripts:analyze_predictions',
+            'evaluate = scripts:evaluate_analysis'
         ],
     },
 )

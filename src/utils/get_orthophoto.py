@@ -6,33 +6,25 @@ from rasterio import DatasetReader
 import rasterio
 import requests
 from shapely.geometry import Polygon, box
-from PIL import Image, ImageFilter
+# from PIL import Image, ImageFilter
 
-from utils.ensure_folder_exists import ensure_folder_exists
+from utils import ensure_folder_exists
 
-url = "https://wcs.geonorge.no/skwms1/wcs.hoyde-dom-nhm-25832"
-coverage = 'nhm_dom_topo_25832'
-srid = 25832
+url = "https://wms.geonorge.no/skwms1/wms.nib"
 
-
-
-
-img_format = "GeoTiff"
-def get_heights_tiff(area: Polygon, folder_path=None, tile_size=512) -> DatasetReader:
-    file_name = f'cache/laser_data/heights_{"{:.0f}_{:.0f}".format(*area.centroid.coords[0])}.tiff'
+def get_orthophoto(area: Polygon, height: int, width: int) -> DatasetReader:
+    file_name = f'cache/ortofoto/{"{:.0f}_{:.0f}".format(*area.centroid.coords[0])}.jpeg'
     if os.path.exists(file_name):
-        return rasterio.open(file_name)
+        return file_name
 
     bounds = area.bounds
     params = {
-        'service': 'wcs',
-        'version': '1.0.0',
-        'request': 'getCoverage',
-        'coverage': coverage,
-        'format': img_format,
-        'width': tile_size,
-        'height': tile_size,
-        'crs': f'EPSG:{srid}',
+        'request': 'getMap',
+        'format': "image/jpeg",
+        'width': width,
+        'height': height,
+        'crs': 'EPSG:25832',
+        'layers': 'ortofoto',
         'bbox': ', '.join((format(x, ".2f") for x in bounds))
     }
     response = requests.get(url, params=params, stream=True,
@@ -41,7 +33,7 @@ def get_heights_tiff(area: Polygon, folder_path=None, tile_size=512) -> DatasetR
         ensure_folder_exists(os.path.dirname(file_name))
         with open(file_name, 'wb') as f:
             f.write(response.content)
-        return rasterio.open(io.BytesIO(response.content))
+        return io.BytesIO(response.content)
     else:
         raise requests.HTTPError(f'Request failed with status code {response.status_code}')
 
@@ -51,7 +43,9 @@ if __name__ == '__main__':
     y = 6465926.15
     d = 25
     aoi = box(x-d, y-d, x+d, y+d)
-    heights_tiff = get_heights_tiff(aoi)
+    im = get_orthophoto(aoi)
+    im.save('ortofoto.jpeg')
+    exit()
     heights = heights_tiff.read(1)
     h = heights / heights.max()
     h = h * 255

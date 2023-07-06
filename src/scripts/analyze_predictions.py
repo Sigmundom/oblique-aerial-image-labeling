@@ -9,7 +9,7 @@ from shapely.geometry import box
 from tqdm import tqdm
 from config import BUFFER, HEIGHT_PX_OFFSET, HEIGHT_RASTER_SIZE, PX_P_M, RASTER_SIZE, THRESH, TILE_SIZE_M
 from core.image_data import ImageDataList, ImageDataRecord
-from utils import ensure_folder_exists, filter_height_values, get_heights_tiff, Camera, save_corrected_nadir_mask, make_histogram
+from utils import ensure_folder_exists, filter_height_values, get_heights_tiff, Camera, save_corrected_nadir_mask, make_histogram, save_image
 from PIL import Image, ImageTransform
 from scipy.ndimage import median_filter, gaussian_filter
 from scipy.interpolate import LinearNDInterpolator
@@ -87,7 +87,7 @@ def analyze_tile(tile_dir: str, image_data: list[ImageDataRecord]):
     
 
     result = np.zeros((RASTER_SIZE, RASTER_SIZE))
-    count = np.zeros((RASTER_SIZE,RASTER_SIZE), dtype=np.uint8)
+    # count = np.zeros((RASTER_SIZE,RASTER_SIZE), dtype=np.uint8)
 
     transform = from_bounds(tile_x, tile_y, tile_maxx, tile_maxy, RASTER_SIZE, RASTER_SIZE)
     profile = heights_tiff.profile
@@ -133,8 +133,7 @@ def analyze_tile(tile_dir: str, image_data: list[ImageDataRecord]):
 
             # Select points using the indices
             laser_data_tc = laser_data_tc[selected_indices]
-
-            laser_data_tc = filter_height_values(laser_data_tc, mask_w, mask_h)
+            laser_data_tc = filter_height_values(laser_data_tc, mask_w, mask_h, cropbox, cropbox_size)
 
             if len(laser_data_tc) < 4: continue
 
@@ -157,21 +156,24 @@ def analyze_tile(tile_dir: str, image_data: list[ImageDataRecord]):
                 if r < 0 or r > RASTER_SIZE-1 or c < 0 or c > RASTER_SIZE-1:
                     continue
                 else:
-                    tmp_result[r,c] += score
-                    count[r,c] += 1
-            plt.imsave(f'{result_dir}/result_{cam_id}.png', tmp_result)
+                    tmp_result[r,c] = max(tmp_result[r,c], score)
+                    # count[r,c] += 1
             result += tmp_result
+            # tmp_result[tmp_result>5] = 5.0
+            save_image(tmp_result, f'{result_dir}/result_{cam_id}.png')
 
     plt.close()
-    plt.imsave(f'{result_dir}/count.png', count)
+    # plt.imsave(f'{result_dir}/count.png', count)
     
-    result_smooth = median_filter(result, 7)
+    # result_smooth = median_filter(result, 5)
+    result_smooth = gaussian_filter(result, 5)
     # result_smooth = smooth(result, count)
     result_sharp_5 = result_smooth >= 1.5
     result_sharp_75 = result_smooth >= 1.75
     result_sharp_2 = result_smooth >= 2
     result_sharp_2_25 = result_smooth >= 2.25
-  
+    
+    # result[result>5] = 5
     save_image(result, f'{result_dir}/result.png')
     save_image(result_smooth, f'{result_dir}/result_smooth.png')
     save_image(result_sharp_5, f'{result_dir}/result_sharp_1_5.png', mode='1')
@@ -180,22 +182,12 @@ def analyze_tile(tile_dir: str, image_data: list[ImageDataRecord]):
     save_image(result_sharp_2_25, f'{result_dir}/result_sharp_2_25.png', mode='1')
 
 
-def img_frombytes(data):
-    size = data.shape[::-1]
-    databytes = np.packbits(data, axis=1)
-    return Image.frombytes(mode='1', size=size, data=databytes)
-
-def save_image(arr, name, mode='L'):
-    if mode == '1':
-        im = img_frombytes(arr)
-    else:
-        im = Image.fromarray(((arr/arr.max())*255).astype(np.uint8), mode)
-    im.save(name)
-
 def compile_tiles(analysis_folder):
+    output_folder = os.path.join(analysis_folder, 'compiled')
+    ensure_folder_exists(output_folder)
     tile_xs = []
     tile_ys = []
-    for tile_folder in os.listdir(analysis_folder):
+    for tile_folder in [f.name for f in os.scandir(analysis_folder) if f.is_dir() and '_' in f.name]:
         x, y = tile_folder.split('_')
         tile_xs.append(int(x))
         tile_ys.append(int(y))
@@ -214,7 +206,7 @@ def compile_tiles(analysis_folder):
     result_2_25 = np.zeros_like(nadir_result, dtype=bool)
 
 
-    for tile_folder in tqdm(os.listdir(analysis_folder)):
+    for tile_folder in tqdm([f.name for f in os.scandir(analysis_folder) if f.is_dir and '_' in f.name]):
         if not os.path.exists(os.path.join(analysis_folder, tile_folder, 'results')): continue
 
         x, y = tile_folder.split('_')
@@ -242,34 +234,34 @@ def compile_tiles(analysis_folder):
         combined_im_2_25 = np.array(Image.open(os.path.join(analysis_folder, tile_folder, 'results', 'result_sharp_2_25.png')), dtype=bool)
         result_2_25[y:y+RASTER_SIZE, x:x+RASTER_SIZE] = combined_im_2_25
 
-
-    save_image(nadir_result, 'compiled/nadir.png')
-    save_image(result, 'compiled/combined.png')
-    save_image(nadir_result_sharp, 'compiled/nadir_sharp.png', mode='1')
-    save_image(result_1_5, 'compiled/combined_1_5.png', mode='1')
-    save_image(result_1_75, 'compiled/combined_1_75.png', mode='1')
-    save_image(result_2, 'compiled/combined_2.png', mode='1')
-    save_image(result_2_25, 'compiled/combined_2_25.png', mode='1')
+    save_image(nadir_result, f'{output_folder}/nadir.png')
+    save_image(result, f'{output_folder}/combined.png')
+    save_image(nadir_result_sharp, f'{output_folder}/nadir_sharp.png', mode='1')
+    save_image(result_1_5, f'{output_folder}/combined_1_5.png', mode='1')
+    save_image(result_1_75, f'{output_folder}/combined_1_75.png', mode='1')
+    save_image(result_2, f'{output_folder}/combined_2.png', mode='1')
+    save_image(result_2_25, f'{output_folder}/combined_2_25.png', mode='1')
 
     transform = from_bounds(tile_minx, tile_miny, tile_maxx, tile_maxy, area_width, area_height)
 
     combined_prob = (result / 255).astype(np.float32)
     nadir_prob = (nadir_result / 255).astype(np.float32)
 
-    with rasterio.open('compiled/combined.tiff', 'w', driver='GTiff', height=area_height*PX_P_M, width=area_width*PX_P_M, count=1, dtype=rasterio.float32,
+    with rasterio.open(f'{output_folder}/combined.tiff', 'w', driver='GTiff', height=area_height*PX_P_M, width=area_width*PX_P_M, count=1, dtype=rasterio.float32,
                    crs='EPSG:25832', transform=transform) as dst:
         dst.write(combined_prob, 1)
 
-    with rasterio.open('compiled/nadir.tiff', 'w', driver='GTiff', height=area_height*PX_P_M, width=area_width*PX_P_M, count=1, dtype=rasterio.float32,
+    with rasterio.open(f'{output_folder}/nadir.tiff', 'w', driver='GTiff', height=area_height*PX_P_M, width=area_width*PX_P_M, count=1, dtype=rasterio.float32,
                    crs='EPSG:25832', transform=transform) as dst:
         dst.write(nadir_prob, 1)
 
 
 @click.command()
-def analyze_predictions():
+@click.argument('config')
+def analyze_predictions(config):
     #### Parameters ####
     # config = 'config/analysis/grimstad.json'
-    config = 'config/analysis/lindesnes.json'
+    # config = 'config/analysis/lindesnes.json'
     ###################
     with open(config, encoding='utf8') as f:
         config = json.load(f)
@@ -297,9 +289,9 @@ def analyze_predictions():
         raise ValueError(f'"{image_data_format}" is not a valid format. Must be "sos" or "shp"')
 
     
-    for tile_folder in tqdm(os.listdir(analysis_folder)):
+    for tile_folder in tqdm([f.path for f in os.scandir(analysis_folder) if f.is_dir()]):
         
-        analyze_tile(os.path.join(analysis_folder, tile_folder), image_data)
+        analyze_tile(tile_folder, image_data)
 
     print('Compiling...')
     compile_tiles(analysis_folder)

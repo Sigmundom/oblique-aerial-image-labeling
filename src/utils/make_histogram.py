@@ -1,6 +1,7 @@
 from matplotlib import pyplot as plt
 
 def make_histogram(values, bins, name):
+    plt.close()
     plt.hist(values, bins=bins)
 
     # Set labels and title

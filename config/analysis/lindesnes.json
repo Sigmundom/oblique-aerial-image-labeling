@@ -1,5 +1,10 @@
 {
   "folder": "analysis/lindesnes",
+  "municipality": {
+      "name": "Lindesnes",
+      "number": 4205
+  },
+  "cityjson": "data/cityjson/3DBYGG_BASISDATA_4205_LINDESNES_5972_FKB-BYGNING_SOSI_CityGML_reprojected.json",
   "images": [
         "/media/sigmundmestad/aa7e1253-187b-48d4-af32-eb9f050db5dd/sigmunom/data"
     ],
